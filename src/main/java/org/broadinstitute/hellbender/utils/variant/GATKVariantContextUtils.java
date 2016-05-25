@@ -1349,4 +1349,54 @@ public final class GATKVariantContextUtils {
 
         return -1;
     }
+
+    /**
+     * Get the number of called alleles for a genotype. Also, increment the number of called alternate alleles.
+     *
+     * @param calledAltAlleles number of called alternate alleles for all genotypes
+     * @param genotype         genotype
+     * @return incremented called alleles
+     * @throws IllegalArgumentException if calledAltAlleles or genotype are null
+     */
+    public static int getCalledChromosomeCounts(final Map<Allele, Integer> calledAltAlleles, final Genotype genotype) {
+        Utils.nonNull(calledAltAlleles, "Called alternate alleles can not be null");
+        Utils.nonNull(genotype, "Genotype can not be null");
+
+        int calledAlleles = 0;
+        if (genotype.isCalled()) {
+            for (final Allele allele : genotype.getAlleles()) {
+                calledAlleles++;
+                if (allele.isNonReference()) {
+                    calledAltAlleles.put(allele, calledAltAlleles.get(allele) + 1);
+                }
+            }
+        }
+
+        return calledAlleles;
+    }
+
+    /**
+     * Update the variant context chromosome counts info fields (AC, AN, AF)
+     *
+     * @param calledAltAlleles  number of called alternate alleles for all genotypes
+     * @param calledAlleles     number of called alleles for all genotypes
+     * @param builder           builder for variant context
+     * @throws IllegalArgumentException if calledAltAlleles or builder are null
+     */
+    public static void updateChromosomeCountsInfo(final Map<Allele, Integer> calledAltAlleles, final int calledAlleles,
+                                                  final VariantContextBuilder builder) {
+        Utils.nonNull(calledAltAlleles, "Called alternate alleles can not be null");
+        Utils.nonNull(builder, "Variant context builder can not be null");
+
+        builder.attribute(VCFConstants.ALLELE_COUNT_KEY, calledAltAlleles.values().toArray()).
+                attribute(VCFConstants.ALLELE_NUMBER_KEY, calledAlleles);
+        // Add AF is there are called alleles
+        if ( calledAlleles != 0 ) {
+            final Set<Double> alleleFrequency = new LinkedHashSet<>(calledAltAlleles.size());
+            for ( final Integer value : calledAltAlleles.values() ) {
+                alleleFrequency.add(value.doubleValue()/calledAlleles);
+            }
+            builder.attribute(VCFConstants.ALLELE_FREQUENCY_KEY, alleleFrequency.toArray());
+        }
+    }
 }
