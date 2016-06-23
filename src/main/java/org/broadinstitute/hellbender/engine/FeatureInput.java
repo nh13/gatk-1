@@ -1,14 +1,24 @@
 package org.broadinstitute.hellbender.engine;
 
 import com.google.common.annotations.VisibleForTesting;
+import genomicsdb.GenomicsDBFeatureReader;
+import htsjdk.tribble.AbstractFeatureReader;
 import htsjdk.tribble.Feature;
+import htsjdk.tribble.FeatureCodec;
+import htsjdk.tribble.FeatureReader;
+import org.broadinstitute.hellbender.exceptions.GATKException;
 import org.broadinstitute.hellbender.exceptions.UserException;
 import org.broadinstitute.hellbender.utils.Utils;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+
+import static htsjdk.samtools.SAMFileHeader.GroupOrder.query;
+import static htsjdk.samtools.util.SequenceUtil.n;
+import static org.apache.hadoop.yarn.webapp.hamlet.HamletSpec.Method.get;
 
 /**
  * Class to represent a Feature-containing input file. Tools should declare @Argument-annotated fields of
@@ -45,15 +55,19 @@ public final class FeatureInput<T extends Feature> {
 
     private final Map<String, String> kevValueMap;
 
+    private final FeatureCodec<T,?> codec;
+
     /**
      * File containing Features as specified by the user on the command line
      */
-    private final File featureFile;
+    private final String featureFile;
 
     /**
      * Type of Feature in the featureFile. Set manually by the engine after construction.
      */
     private Class<? extends Feature> featureType;
+
+    private Boolean hasIndex = null;
 
     /**
      * Delimiter between the logical name and the file name in the --argument_name logical_name:feature_file syntax
@@ -70,6 +84,68 @@ public final class FeatureInput<T extends Feature> {
      */
     public static final String FEATURE_ARGUMENT_KEY_VALUE_SEPARATOR = "=";
 
+    FeatureCodec<T, ?> getCodec() {
+        return (FeatureCodec<T, ?>) FeatureManager.getCodecForFile(getFeatureFile());
+    }
+
+    public <SOURCE> FeatureReader<T> getFeatureReader() {
+        if (isTileDBInput()) {
+            return makeGenomicsDBReader();
+        } else {
+            return AbstractFeatureReader.getFeatureReader(getFeatureFile().getAbsolutePath(), getCodec(), false);
+        }
+    }
+
+    private <SOURCE> GenomicsDBFeatureReader<T, SOURCE> makeGenomicsDBReader() {
+
+
+
+        return new GenomicsDBFeatureReader<T,SOURCE>();
+    }
+
+    private static class GenomicsDBInput {
+        private final File loaderJson;
+        private final File queryJson;
+
+        public GenomicsDBInput(String path){
+            if( !FeatureInput.isTileDBPath(path)){
+                throw new GATKException("Trying to create a GenomicsDBReader from a non-genomics db input");
+            }
+
+            final String noheader = path.replace("gendb://", "");
+            loaderJson = new File(noheader, "loader.json");
+            queryJson = new File(noheader, "query.json");
+
+            assertJsonExists(loaderJson);
+            assertJsonExists(queryJson);
+        }
+
+        public FeatureReader<?>
+        private static void assertJsonExists(File json) {
+            if(!json.exists()) {
+                throw new UserException("Couldn't connect to GenomicsDB because " + json.getAbsolutePath() + " does not exist.");
+            }
+        }
+    }
+
+    private boolean isTileDBInput() {
+        return isTileDBPath(featureFile);
+    }
+
+
+    boolean readersHaveIndex(){
+        if (isTileDBInput()){
+            return true;
+        } else if (hasIndex == null) {
+                try (AbstractFeatureReader<?, ?> reader = AbstractFeatureReader.getFeatureReader(getFeatureFile().getAbsolutePath(), getCodec(), false)) {
+                    hasIndex = reader.hasIndex();
+                } catch (final IOException e) {
+                    throw new GATKException("Failed to close a reader after looking for an index", e);
+                }
+        }
+        return hasIndex;
+    }
+
     /**
      * Represents a parsed argument for the FeatureInput.
      * Always has a file and a name.
@@ -78,7 +154,7 @@ public final class FeatureInput<T extends Feature> {
     private static final class ParsedArgument{
         private final Map<String, String> keyValueMap;
         private final String name;
-        private final File file;
+        private final String file;
 
         /**
          * Parses an argument value String of the forms:
@@ -108,7 +184,7 @@ public final class FeatureInput<T extends Feature> {
 
             if (tokens.length == 1) {
                 // No user-specified logical name for this FeatureInput, so use the absolute path to the File as its name
-                final File featureFile = new File(tokens[0]);
+                final String featureFile = tokens[0];
                 return new ParsedArgument(featureFile.getAbsolutePath(), featureFile);
             }
 
@@ -120,7 +196,7 @@ public final class FeatureInput<T extends Feature> {
             if (subtokens[0].isEmpty()){
                 throw new UserException.BadArgumentValue("", rawArgumentValue, usage);
             }
-            final ParsedArgument pa= new ParsedArgument(subtokens[0], new File(tokens[1]));
+            final ParsedArgument pa= new ParsedArgument(subtokens[0], tokens[1]);
             //note: starting from 1 because 0 is the name
             for (int i = 1; i < subtokens.length; i++){
                 final String[] kv = subtokens[i].split(FEATURE_ARGUMENT_KEY_VALUE_SEPARATOR, -1);
@@ -135,13 +211,13 @@ public final class FeatureInput<T extends Feature> {
             return pa;
         }
 
-        private ParsedArgument(final String name, final File file) {
+        private ParsedArgument(final String name, final String file) {
             this.name=name;
             this.file=file;
             this.keyValueMap = new LinkedHashMap<>(2);
         }
 
-        public File getFile(){
+        public String getFilePath(){
             return file;
         }
 
@@ -182,8 +258,13 @@ public final class FeatureInput<T extends Feature> {
 
         name = parsedArgument.getName();
         kevValueMap = parsedArgument.keyValueMap();
-        featureFile = parsedArgument.getFile();
+        featureFile = parsedArgument.getFilePath();
         featureType = null;  // Must be set after construction
+        codec = null;
+    }
+
+    private static boolean isTileDBPath(String filePath){
+        return filePath.startsWith("gendb://");
     }
 
     /**
@@ -201,6 +282,18 @@ public final class FeatureInput<T extends Feature> {
         this.kevValueMap = Collections.unmodifiableMap(new LinkedHashMap<>(kevValueMap));   //make a unmodifiable copy
         this.featureFile = featureFile;
         this.featureType = null;  // Must be set after construction
+        this.codec = null;
+    }
+
+    public FeatureInput(final String name, final FeatureCodec<T,?> codec, final File featureFile){
+        Utils.nonNull(name, "name");
+        Utils.nonNull(codec, "codec");
+        Utils.nonNull(featureFile, "featureFile");
+        this.name = name;
+        this.kevValueMap = Collections.emptyMap();
+        this.featureFile = featureFile;
+        this.featureType = null;
+        this.codec = null;
     }
 
     /**
@@ -254,7 +347,7 @@ public final class FeatureInput<T extends Feature> {
     /**
      * FeatureInputs will be hashed by the engine, so make an effort to produce a reasonable hash code
      *
-     * @return hash code for this FeatureInput (combination of hash codec of the name and file)
+     * @return hash code for this FeatureInput (combination of hash code of the name and file)
      */
     @Override
     public int hashCode() {
@@ -286,7 +379,7 @@ public final class FeatureInput<T extends Feature> {
      */
     @Override
     public String toString() {
-        final String featureFilePath = featureFile.getAbsolutePath();
+        final String featureFilePath = featureFile;
         return name.equals(featureFilePath) ? featureFilePath :
                                               String.format("%s%s%s", name, FEATURE_ARGUMENT_TAG_DELIMITER, featureFilePath);
     }

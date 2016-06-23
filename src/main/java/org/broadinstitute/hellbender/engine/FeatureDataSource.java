@@ -1,7 +1,11 @@
 package org.broadinstitute.hellbender.engine;
 
 import htsjdk.samtools.SAMSequenceDictionary;
-import htsjdk.tribble.*;
+import htsjdk.tribble.CloseableTribbleIterator;
+import htsjdk.tribble.Feature;
+import htsjdk.tribble.FeatureCodec;
+import htsjdk.tribble.FeatureReader;
+import htsjdk.tribble.TribbleException;
 import htsjdk.variant.vcf.VCFHeader;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -10,10 +14,12 @@ import org.broadinstitute.hellbender.exceptions.UserException;
 import org.broadinstitute.hellbender.tools.IndexFeatureFile;
 import org.broadinstitute.hellbender.utils.IndexUtils;
 import org.broadinstitute.hellbender.utils.SimpleInterval;
+import org.broadinstitute.hellbender.utils.Utils;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.*;
+import java.util.Iterator;
+import java.util.List;
 
 /**
  * Enables traversals and queries over sources of Features, which are metadata associated with a location
@@ -52,12 +58,7 @@ public final class FeatureDataSource<T extends Feature> implements GATKDataSourc
     /**
      * Feature reader used to retrieve records from our file
      */
-    private final AbstractFeatureReader<T, ?> featureReader;
-
-    /**
-     * Tribble codec used by our reader to decode the records in our file
-     */
-    private final FeatureCodec<T, ?> codec;
+    private final FeatureReader<T> featureReader;
 
     /**
      * Iterator representing an open traversal over this data source initiated via a call to {@link #iterator}
@@ -119,7 +120,7 @@ public final class FeatureDataSource<T extends Feature> implements GATKDataSourc
      * @param codec codec with which to decode the records from featureFile
      */
     public FeatureDataSource( final File featureFile, final FeatureCodec<T, ?> codec ) {
-        this(featureFile, codec, null, DEFAULT_QUERY_LOOKAHEAD_BASES);
+        this(new FeatureInput<T>(Utils.nonNull(featureFile).getAbsolutePath(), codec, featureFile), DEFAULT_QUERY_LOOKAHEAD_BASES);
     }
 
     /**
@@ -132,7 +133,11 @@ public final class FeatureDataSource<T extends Feature> implements GATKDataSourc
      * @param name logical name for this data source (may be null)
      */
     public FeatureDataSource( final File featureFile, final FeatureCodec<T, ?> codec, final String name ) {
-        this(featureFile, codec, name, DEFAULT_QUERY_LOOKAHEAD_BASES);
+        this(new FeatureInput<T>(name, codec, featureFile), DEFAULT_QUERY_LOOKAHEAD_BASES);
+    }
+
+    public FeatureDataSource( final File featureFile, final FeatureCodec<T, ?> codec, final String name, final int queryLookaheadBases ){
+        this(new FeatureInput<T>(name, codec, featureFile), queryLookaheadBases);
     }
 
     /**
@@ -145,23 +150,27 @@ public final class FeatureDataSource<T extends Feature> implements GATKDataSourc
      * @param name logical name for this data source (may be null)
      * @param queryLookaheadBases look ahead this many bases during queries that produce cache misses
      */
-    public FeatureDataSource( final File featureFile, final FeatureCodec<T, ?> codec, final String name, final int queryLookaheadBases ) {
-        if ( featureFile == null || codec == null ) {
+    public FeatureDataSource( final FeatureInput<T> featureInput, final int queryLookaheadBases ) {
+        Utils.nonNull(featureInput);
+
+        if ( featureInput.getFeatureFile() == null || featureInput.getCodec() == null ) {
             throw new IllegalArgumentException("FeatureDataSource cannot be created from null file/codec");
         }
         if ( queryLookaheadBases < 0 ) {
             throw new IllegalArgumentException("Query lookahead bases must be >= 0");
         }
+
+        this.featureFile = featureInput.getFeatureFile();
+
         if ( ! featureFile.canRead() || featureFile.isDirectory() ) {
             throw new UserException.CouldNotReadInputFile("File " + featureFile.getAbsolutePath() + " does not exist, is unreadable, or is a directory");
         }
 
-        this.featureFile = featureFile;
 
         try {
             // Instruct the reader factory to not require an index. We will require one ourselves as soon as
             // a query by interval is attempted.
-            this.featureReader = AbstractFeatureReader.getFeatureReader(featureFile.getAbsolutePath(), codec, false);
+            this.featureReader = featureInput.getFeatureReader();
         }
         catch ( TribbleException e ) {
             throw new GATKException("Error initializing feature reader for file " + featureFile.getAbsolutePath(), e);
@@ -171,10 +180,11 @@ public final class FeatureDataSource<T extends Feature> implements GATKDataSourc
         this.intervalsForTraversal = null;
         this.queryCache = new FeatureCache<>();
         this.queryLookaheadBases = queryLookaheadBases;
-        this.codec = codec;
-        this.name = name;
-        this.hasIndex = featureReader.hasIndex(); // Cache this result, as it's fairly expensive to determine
+        this.name = featureInput.getName();
+        this.hasIndex = featureInput.readersHaveIndex(); // Cache this result, as it's fairly expensive to determine
     }
+
+
 
     /**
      * Returns the sequence dictionary for this source of Features.
@@ -336,25 +346,6 @@ public final class FeatureDataSource<T extends Feature> implements GATKDataSourc
         catch ( IOException e ) {
             throw new GATKException("Error querying file " + featureFile.getAbsolutePath() + " over interval " + interval, e);
         }
-    }
-
-    /**
-     * Get the class of the codec being used to decode records from our file
-     *
-     * @return the class of the codec being used to decode records from our file
-     */
-    @SuppressWarnings("rawtypes")
-    public final Class<? extends FeatureCodec> getCodecClass() {
-        return codec.getClass();
-    }
-
-    /**
-     * Get the type of Feature record stored in this data source
-     *
-     * @return the type of Feature record stored in this data source
-     */
-    public final Class<T> getFeatureType() {
-        return codec.getFeatureType();
     }
 
     /**

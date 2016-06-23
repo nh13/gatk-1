@@ -51,20 +51,6 @@ public final class FeatureDataSourceUnitTest extends BaseTest {
     }
 
     @Test
-    public void testGetCodecClass() {
-        try (FeatureDataSource<VariantContext> featureSource = new FeatureDataSource<>(QUERY_TEST_VCF, new VCFCodec())) {
-            Assert.assertEquals(featureSource.getCodecClass(), VCFCodec.class, "Wrong codec class returned from getCodecClass()");
-        }
-    }
-
-    @Test
-    public void testGetFeatureType() {
-        try (FeatureDataSource<VariantContext> featureSource = new FeatureDataSource<>(QUERY_TEST_VCF, new VCFCodec())) {
-            Assert.assertEquals(featureSource.getFeatureType(), VariantContext.class, "Wrong feature type returned from getFeatureType()");
-        }
-    }
-
-    @Test
     public void testGetName() {
         try (FeatureDataSource<VariantContext> featureSource = new FeatureDataSource<>(QUERY_TEST_VCF, new VCFCodec(), "CustomName")) {
             Assert.assertEquals(featureSource.getName(), "CustomName", "Wrong name returned from getName()");
