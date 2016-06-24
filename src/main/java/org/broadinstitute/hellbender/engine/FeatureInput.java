@@ -107,6 +107,7 @@ public final class FeatureInput<T extends Feature> {
             }
 
             if (tokens.length == 1) {
+
                 // No user-specified logical name for this FeatureInput, so use the absolute path to the File as its name
                 final File featureFile = new File(tokens[0]);
                 return new ParsedArgument(featureFile.getAbsolutePath(), featureFile);
