@@ -53,7 +53,7 @@ public final class FeatureDataSource<T extends Feature> implements GATKDataSourc
     /**
      * File backing this data source. Used mainly for error messages.
      */
-    private final File featureFile;
+    private final String featurePath;
 
     /**
      * Feature reader used to retrieve records from our file
@@ -120,7 +120,7 @@ public final class FeatureDataSource<T extends Feature> implements GATKDataSourc
      * @param codec codec with which to decode the records from featureFile
      */
     public FeatureDataSource( final File featureFile, final FeatureCodec<T, ?> codec ) {
-        this(new FeatureInput<T>(Utils.nonNull(featureFile).getAbsolutePath(), codec, featureFile), DEFAULT_QUERY_LOOKAHEAD_BASES);
+        this(new FeatureInput<>(Utils.nonNull(featureFile).getAbsolutePath(), codec, featureFile), DEFAULT_QUERY_LOOKAHEAD_BASES);
     }
 
     /**
@@ -133,11 +133,11 @@ public final class FeatureDataSource<T extends Feature> implements GATKDataSourc
      * @param name logical name for this data source (may be null)
      */
     public FeatureDataSource( final File featureFile, final FeatureCodec<T, ?> codec, final String name ) {
-        this(new FeatureInput<T>(name, codec, featureFile), DEFAULT_QUERY_LOOKAHEAD_BASES);
+        this(new FeatureInput<>(name, codec, featureFile), DEFAULT_QUERY_LOOKAHEAD_BASES);
     }
 
     public FeatureDataSource( final File featureFile, final FeatureCodec<T, ?> codec, final String name, final int queryLookaheadBases ){
-        this(new FeatureInput<T>(name, codec, featureFile), queryLookaheadBases);
+        this(new FeatureInput<>(name, codec, featureFile), queryLookaheadBases);
     }
 
     /**
@@ -153,28 +153,18 @@ public final class FeatureDataSource<T extends Feature> implements GATKDataSourc
     public FeatureDataSource( final FeatureInput<T> featureInput, final int queryLookaheadBases ) {
         Utils.nonNull(featureInput);
 
-        if ( featureInput.getFeatureFile() == null || featureInput.getCodec() == null ) {
-            throw new IllegalArgumentException("FeatureDataSource cannot be created from null file/codec");
+        if ( featureInput.getFeaturePath() == null ) {
+            throw new IllegalArgumentException("FeatureDataSource cannot be created from null file");
         }
         if ( queryLookaheadBases < 0 ) {
             throw new IllegalArgumentException("Query lookahead bases must be >= 0");
         }
 
-        this.featureFile = featureInput.getFeatureFile();
 
-        if ( ! featureFile.canRead() || featureFile.isDirectory() ) {
-            throw new UserException.CouldNotReadInputFile("File " + featureFile.getAbsolutePath() + " does not exist, is unreadable, or is a directory");
-        }
-
-
-        try {
-            // Instruct the reader factory to not require an index. We will require one ourselves as soon as
-            // a query by interval is attempted.
-            this.featureReader = featureInput.getFeatureReader();
-        }
-        catch ( TribbleException e ) {
-            throw new GATKException("Error initializing feature reader for file " + featureFile.getAbsolutePath(), e);
-        }
+        // Instruct the reader factory to not require an index. We will require one ourselves as soon as
+        // a query by interval is attempted.
+        this.featureReader = featureInput.getFeatureReader();
+        this.featurePath = featureInput.getFeaturePath();
 
         this.currentIterator = null;
         this.intervalsForTraversal = null;
@@ -202,7 +192,7 @@ public final class FeatureDataSource<T extends Feature> implements GATKDataSourc
             return dict;
         }
         if (hasIndex) {
-            return IndexUtils.createSequenceDictionaryFromFeatureIndex(featureFile);
+            return IndexUtils.createSequenceDictionaryFromFeatureIndex(new File(featurePath));
         }
         return null;
     }
@@ -225,7 +215,7 @@ public final class FeatureDataSource<T extends Feature> implements GATKDataSourc
         intervalsForTraversal = (intervals != null && !intervals.isEmpty()) ? intervals : null;
 
         if ( intervalsForTraversal != null && ! hasIndex ) {
-            throw new UserException("File " + featureFile.getAbsolutePath() + " requires an index to enable traversal by intervals. " +
+            throw new UserException("File " + featurePath + " requires an index to enable traversal by intervals. " +
                                     "Please index this file using the bundled tool " + IndexFeatureFile.class.getSimpleName());
         }
     }
@@ -247,12 +237,12 @@ public final class FeatureDataSource<T extends Feature> implements GATKDataSourc
 
         try {
             // Save the iterator returned so that we can close it properly later
-            currentIterator = intervalsForTraversal != null ? new FeatureIntervalIterator<T>(intervalsForTraversal, featureReader, featureFile.getAbsolutePath())
+            currentIterator = intervalsForTraversal != null ? new FeatureIntervalIterator<T>(intervalsForTraversal, featureReader, featurePath)
                                                             : featureReader.iterator();
             return currentIterator;
         }
         catch ( IOException e ) {
-            throw new GATKException("Error creating iterator over file " + featureFile.getAbsolutePath(), e);
+            throw new GATKException("Error creating iterator over file " + featurePath, e);
         }
     }
 
@@ -297,7 +287,7 @@ public final class FeatureDataSource<T extends Feature> implements GATKDataSourc
      */
     public List<T> queryAndPrefetch( final SimpleInterval interval ) {
         if ( ! hasIndex ) {
-            throw new UserException("File " + featureFile.getAbsolutePath() + " requires an index to enable queries by interval. " +
+            throw new UserException("File " + featurePath + " requires an index to enable queries by interval. " +
                                     "Please index this file using the bundled tool " + IndexFeatureFile.class.getSimpleName());
         }
 
@@ -344,7 +334,7 @@ public final class FeatureDataSource<T extends Feature> implements GATKDataSourc
             queryCache.fill(queryIter, queryInterval);
         }
         catch ( IOException e ) {
-            throw new GATKException("Error querying file " + featureFile.getAbsolutePath() + " over interval " + interval, e);
+            throw new GATKException("Error querying file " + featurePath + " over interval " + interval, e);
         }
     }
 
@@ -374,7 +364,7 @@ public final class FeatureDataSource<T extends Feature> implements GATKDataSourc
     public void close() {
         closeOpenIterationIfNecessary();
 
-        logger.debug(String.format("Cache statistics for FeatureInput %s:", name != null ? name + " (" + featureFile.getName() + ")" : featureFile.getName()));
+        logger.debug(String.format("Cache statistics for FeatureInput %s:", name != null ? name + " (" + featurePath + ")" : featurePath));
         queryCache.printCacheStatistics();
 
         try {
@@ -382,7 +372,7 @@ public final class FeatureDataSource<T extends Feature> implements GATKDataSourc
                 featureReader.close();
         }
         catch ( IOException e ) {
-            throw new GATKException("Error closing Feature reader for file " + featureFile.getAbsolutePath());
+            throw new GATKException("Error closing Feature reader for file " + featurePath);
         }
     }
 

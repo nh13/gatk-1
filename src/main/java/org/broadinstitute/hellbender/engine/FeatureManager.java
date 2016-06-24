@@ -159,11 +159,8 @@ public final class FeatureManager implements AutoCloseable {
         // This is used for type-checking purposes.
         featureInput.setFeatureType(featureType);
 
-        // Select the right codec for decoding the underlying file
-        final FeatureCodec<? extends Feature, ?> codec = getCodecForFile(featureInput.getFeatureFile(), featureType);
-
         // Create a new FeatureDataSource for this file, and add it to our query pool
-        featureSources.put(featureInput, new FeatureDataSource<>(featureInput.getFeatureFile(), codec, featureInput.getName(), featureQueryLookahead));
+        featureSources.put(featureInput, new FeatureDataSource<>(featureInput, featureQueryLookahead));
     }
 
     /**

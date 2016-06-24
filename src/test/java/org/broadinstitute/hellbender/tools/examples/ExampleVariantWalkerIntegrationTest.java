@@ -25,4 +25,17 @@ public final class ExampleVariantWalkerIntegrationTest extends CommandLineProgra
         );
         testSpec.executeTest("testExampleIntervalWalker", this);
     }
+
+    @Test
+    public void testExampleVariantWalkerWithTileDB() throws IOException {
+        IntegrationTestSpec testSpec = new IntegrationTestSpec(
+                " -L 20:100-200" +
+                        " -R " + "/Users/louisb/Workspace/gatk/src/test/resources/large/human_g1k_v37.20.21.fasta" +
+                        " -I " + "/Users/louisb/Workspace/gatk/src/test/resources/large/CEUTrio.HiSeq.WGS.b37.NA12878.20.21.bam" +
+                        " -V " + "gendb:///Users/louisb/Workspace/gatk/testArrayJsons" +
+                        " -O %s",
+                Arrays.asList(TEST_OUTPUT_DIRECTORY + "expected_ExampleVariantWalkerIntegrationTest_output.txt")
+        );
+        testSpec.executeTest("testExampleIntervalWalker", this);
+    }
 }
