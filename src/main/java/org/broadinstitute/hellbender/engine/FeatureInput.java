@@ -1,11 +1,15 @@
 package org.broadinstitute.hellbender.engine;
 
+import com.google.api.services.genomics.model.Variant;
 import com.google.common.annotations.VisibleForTesting;
 import genomicsdb.GenomicsDBFeatureReader;
 import htsjdk.tribble.AbstractFeatureReader;
 import htsjdk.tribble.Feature;
 import htsjdk.tribble.FeatureCodec;
 import htsjdk.tribble.FeatureReader;
+import htsjdk.tribble.readers.PositionalBufferedStream;
+import htsjdk.variant.bcf2.BCF2Codec;
+import htsjdk.variant.variantcontext.VariantContext;
 import org.broadinstitute.hellbender.exceptions.GATKException;
 import org.broadinstitute.hellbender.exceptions.UserException;
 import org.broadinstitute.hellbender.utils.Utils;
@@ -88,20 +92,19 @@ public final class FeatureInput<T extends Feature> {
         return (FeatureCodec<T, ?>) FeatureManager.getCodecForFile(getFeatureFile());
     }
 
-    public <SOURCE> FeatureReader<T> getFeatureReader() {
+    public FeatureReader<T> getFeatureReader() {
         if (isTileDBInput()) {
-            return makeGenomicsDBReader();
+            try {
+                return (FeatureReader<T>) new GenomicsDBInput(featureFile).getFeatureReader();
+            } catch (final ClassCastException e){
+                throw new UserException("GenomicsDB inputs can only be used to provide VariantContexts.", e);
+            }
         } else {
             return AbstractFeatureReader.getFeatureReader(getFeatureFile().getAbsolutePath(), getCodec(), false);
         }
     }
 
-    private <SOURCE> GenomicsDBFeatureReader<T, SOURCE> makeGenomicsDBReader() {
 
-
-
-        return new GenomicsDBFeatureReader<T,SOURCE>();
-    }
 
     private static class GenomicsDBInput {
         private final File loaderJson;
@@ -120,8 +123,14 @@ public final class FeatureInput<T extends Feature> {
             assertJsonExists(queryJson);
         }
 
-        public FeatureReader<?>
-        private static void assertJsonExists(File json) {
+        public  FeatureReader<VariantContext> getFeatureReader() {
+            try {
+                return new GenomicsDBFeatureReader<>(loaderJson.getAbsolutePath(), queryJson.getAbsolutePath(), new BCF2Codec());
+            } catch (final IOException e) {
+                throw new GATKException("Couldn't create GenomicsDBFeature reader", e);
+            }
+        }
+        private static void assertJsonExists(final File json) {
             if(!json.exists()) {
                 throw new UserException("Couldn't connect to GenomicsDB because " + json.getAbsolutePath() + " does not exist.");
             }
@@ -185,7 +194,7 @@ public final class FeatureInput<T extends Feature> {
             if (tokens.length == 1) {
                 // No user-specified logical name for this FeatureInput, so use the absolute path to the File as its name
                 final String featureFile = tokens[0];
-                return new ParsedArgument(featureFile.getAbsolutePath(), featureFile);
+                return new ParsedArgument(featureFile, featureFile);
             }
 
             // User specified a logical name (and optional list of key-value pairs)
