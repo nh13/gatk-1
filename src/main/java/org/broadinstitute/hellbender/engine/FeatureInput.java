@@ -58,6 +58,7 @@ public final class FeatureInput<T extends Feature> {
      * File containing Features as specified by the user on the command line
      */
     private final String featureFile;
+    private FeatureCodec<T, ?> codec;
 
     /**
      * Type of Feature in the featureFile. Set manually by the engine after construction.
@@ -83,11 +84,16 @@ public final class FeatureInput<T extends Feature> {
 
     @SuppressWarnings("unchecked")
     FeatureCodec<T, ?> getCodec() {
+        if( codec != null){
+            return codec;
+        }
+
         if( featureType == null){
             throw new GATKException("setFeatureType must be called before calling getCodec");
         }
+        codec = (FeatureCodec<T, ?>) FeatureManager.getCodecForFile(new File(getFeaturePath()), featureType);
 
-        return (FeatureCodec<T, ?>) FeatureManager.getCodecForFile(new File(getFeaturePath()), featureType);
+        return codec;
     }
 
     @SuppressWarnings("unchecked")
@@ -154,7 +160,14 @@ public final class FeatureInput<T extends Feature> {
     }
 
     private AbstractFeatureReader<T, ?> getNonGenomicDBFeatureReader() {
-        final String absolutePath = new File(getFeaturePath()).getAbsolutePath();
+        final File featureFile = new File(getFeaturePath());
+        final String absolutePath = featureFile.getAbsolutePath();
+        if (!featureFile.exists()){
+            throw new UserException.CouldNotReadInputFile(featureFile, "It doesn't exist.");
+        }
+        if (!featureFile.isFile()){
+            throw new UserException.CouldNotReadInputFile(featureFile, "It isn't a regular file");
+        }
         try {
             // Instruct the reader factory to not require an index. We will require one ourselves as soon as
             // a query by interval is attempted.
@@ -278,7 +291,7 @@ public final class FeatureInput<T extends Feature> {
 
         name = parsedArgument.getName();
         keyValueMap = parsedArgument.keyValueMap();
-        featureFile = parsedArgument.getFilePath();
+        this.featureFile = parsedArgument.getFilePath();
         featureType = null;  // Must be set after construction
     }
 
@@ -315,6 +328,7 @@ public final class FeatureInput<T extends Feature> {
         this.keyValueMap = Collections.emptyMap();
         this.featureFile = featureFile.getAbsolutePath();
         this.featureType = null; //must be set after construction
+        this.codec = codec;
     }
 
     /**
