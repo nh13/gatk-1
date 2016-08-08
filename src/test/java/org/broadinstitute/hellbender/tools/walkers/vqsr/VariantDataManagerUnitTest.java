@@ -51,170 +51,136 @@
 
 package org.broadinstitute.gatk.tools.walkers.variantrecalibration;
 
-import org.broadinstitute.gatk.utils.exceptions.ReviewedGATKException;
-import org.broadinstitute.gatk.utils.exceptions.UserException;
-import org.broadinstitute.gatk.utils.text.XReadLines;
+import org.apache.commons.lang.ArrayUtils;
+import org.broadinstitute.gatk.utils.BaseTest;
+import org.testng.Assert;
+import org.testng.annotations.Test;
 
-import java.io.*;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Arrays;
 
 /**
- * Created by IntelliJ IDEA.
+ * Created with IntelliJ IDEA.
  * User: rpoplin
- * Date: Mar 10, 2011
+ * Date: 7/25/13
  */
 
-public class Tranche {
-    private static final int CURRENT_VERSION = 5;
+public class VariantDataManagerUnitTest extends BaseTest {
 
-    public double ts, minVQSLod, knownTiTv, novelTiTv;
-    public int numKnown,numNovel;
-    public String name;
-    public VariantRecalibratorArgumentCollection.Mode model;
+    @Test
+    public final void testCalculateSortOrder() {
+        final double passingQual = 400.0;
+        final VariantRecalibratorArgumentCollection VRAC = new VariantRecalibratorArgumentCollection();
 
-    int accessibleTruthSites = 0;
-    int callsAtTruthSites = 0;
+        VariantDataManager vdm = new VariantDataManager(new ArrayList<String>(), VRAC);
 
-    public Tranche(double ts, double minVQSLod, int numKnown, double knownTiTv, int numNovel, double novelTiTv, int accessibleTruthSites, int callsAtTruthSites, VariantRecalibratorArgumentCollection.Mode model) {
-        this(ts, minVQSLod, numKnown, knownTiTv, numNovel, novelTiTv, accessibleTruthSites, callsAtTruthSites, model, "anonymous");
-    }
+        final List<VariantDatum> theData = new ArrayList<>();
+        final VariantDatum datum1 = new VariantDatum();
+        datum1.atTrainingSite = true;
+        datum1.failingSTDThreshold = false;
+        datum1.originalQual = passingQual;
+        datum1.annotations = new double[]{0.0,-10.0,10.0};
+        datum1.isNull = new boolean[]{false, false, false};
+        theData.add(datum1);
 
-    public Tranche(double ts, double minVQSLod, int numKnown, double knownTiTv, int numNovel, double novelTiTv, int accessibleTruthSites, int callsAtTruthSites, VariantRecalibratorArgumentCollection.Mode model, String name ) {
-        this.ts = ts;
-        this.minVQSLod = minVQSLod;
-        this.novelTiTv = novelTiTv;
-        this.numNovel = numNovel;
-        this.knownTiTv = knownTiTv;
-        this.numKnown = numKnown;
-        this.model = model;
-        this.name = name;
+        final VariantDatum datum2 = new VariantDatum();
+        datum2.atTrainingSite = true;
+        datum2.failingSTDThreshold = false;
+        datum2.originalQual = passingQual;
+        datum2.annotations = new double[]{0.0,-9.0,15.0};
+        datum2.isNull = new boolean[]{false, false, false};
+        theData.add(datum2);
 
-        this.accessibleTruthSites = accessibleTruthSites;
-        this.callsAtTruthSites = callsAtTruthSites;
+        final VariantDatum datum3 = new VariantDatum();
+        datum3.atTrainingSite = false;
+        datum3.failingSTDThreshold = false;
+        datum3.originalQual = passingQual;
+        datum3.annotations = new double[]{0.0,1.0,999.0};
+        datum3.isNull = new boolean[]{false, false, false};
+        theData.add(datum3);
 
-        if ( ts < 0.0 || ts > 100.0)
-            throw new UserException("Target FDR is unreasonable " + ts);
+        final VariantDatum datum4 = new VariantDatum();
+        datum4.atTrainingSite = false;
+        datum4.failingSTDThreshold = false;
+        datum4.originalQual = passingQual;
+        datum4.annotations = new double[]{0.015,2.0,1001.11};
+        datum4.isNull = new boolean[]{false, false, false};
+        theData.add(datum4);
 
-        if ( numKnown < 0 || numNovel < 0)
-            throw new ReviewedGATKException("Invalid tranche - no. variants is < 0 : known " + numKnown + " novel " + numNovel);
+        vdm.setData(theData);
 
-        if ( name == null )
-            throw new ReviewedGATKException("BUG -- name cannot be null");
-    }
-
-    private double getTruthSensitivity() {
-        return accessibleTruthSites > 0 ? callsAtTruthSites / (1.0*accessibleTruthSites) : 0.0;
-    }
-
-    public static class TrancheTruthSensitivityComparator implements Comparator<Tranche>, Serializable {
-        @Override
-        public int compare(final Tranche tranche1, final Tranche tranche2) {
-            return Double.compare(tranche1.ts, tranche2.ts);
+        final double[] meanVector = new double[3];
+        for( int iii = 0; iii < meanVector.length; iii++ ) {
+            meanVector[iii] = vdm.mean(iii, true);
         }
+        final List<Integer> order = vdm.calculateSortOrder(meanVector);
+        Assert.assertTrue(Arrays.equals(new int[]{2,1,0}, ArrayUtils.toPrimitive(order.toArray(new Integer[order.size()]))));
     }
 
-    @Override
-    public String toString() {
-        return String.format("Tranche ts=%.2f minVQSLod=%.4f known=(%d @ %.4f) novel=(%d @ %.4f) truthSites(%d accessible, %d called), name=%s]",
-                ts, minVQSLod, numKnown, knownTiTv, numNovel, novelTiTv, accessibleTruthSites, callsAtTruthSites, name);
-    }
+    @Test
+    public final void testDownSamplingTrainingData() {
+        final int MAX_NUM_TRAINING_DATA = 5000;
+        final double passingQual = 400.0;
+        final VariantRecalibratorArgumentCollection VRAC = new VariantRecalibratorArgumentCollection();
+        VRAC.MAX_NUM_TRAINING_DATA = MAX_NUM_TRAINING_DATA;
 
-    /**
-     * Returns an appropriately formatted string representing the raw tranches file on disk.
-     *
-     * @param tranches
-     * @return
-     */
-    public static String tranchesString( final List<Tranche> tranches ) {
-        final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-        final PrintStream stream = new PrintStream(bytes);
-
-        if( tranches.size() > 1 )
-            Collections.sort( tranches, new TrancheTruthSensitivityComparator() );
-
-        stream.println("# Variant quality score tranches file");
-        stream.println("# Version number " + CURRENT_VERSION);
-        stream.println("targetTruthSensitivity,numKnown,numNovel,knownTiTv,novelTiTv,minVQSLod,filterName,model,accessibleTruthSites,callsAtTruthSites,truthSensitivity");
-
-        Tranche prev = null;
-        for ( Tranche t : tranches ) {
-            stream.printf("%.2f,%d,%d,%.4f,%.4f,%.4f,VQSRTranche%s%.2fto%.2f,%s,%d,%d,%.4f%n",
-                    t.ts, t.numKnown, t.numNovel, t.knownTiTv, t.novelTiTv, t.minVQSLod, t.model.toString(),
-                    (prev == null ? 0.0 : prev.ts), t.ts, t.model.toString(), t.accessibleTruthSites, t.callsAtTruthSites, t.getTruthSensitivity());
-            prev = t;
+        VariantDataManager vdm = new VariantDataManager(new ArrayList<String>(), VRAC);
+        final List<VariantDatum> theData = new ArrayList<>();
+        for( int iii = 0; iii < MAX_NUM_TRAINING_DATA * 10; iii++) {
+            final VariantDatum datum = new VariantDatum();
+            datum.atTrainingSite = true;
+            datum.failingSTDThreshold = false;
+            datum.originalQual = passingQual;
+            theData.add(datum);
         }
 
-        return bytes.toString();
+        for( int iii = 0; iii < MAX_NUM_TRAINING_DATA * 2; iii++) {
+            final VariantDatum datum = new VariantDatum();
+            datum.atTrainingSite = false;
+            datum.failingSTDThreshold = false;
+            datum.originalQual = passingQual;
+            theData.add(datum);
+        }
+
+        vdm.setData(theData);
+        final List<VariantDatum> trainingData = vdm.getTrainingData();
+
+        Assert.assertTrue( trainingData.size() == MAX_NUM_TRAINING_DATA );
     }
 
-    private static double getDouble(Map<String,String> bindings, String key, boolean required) {
-        if ( bindings.containsKey(key) ) {
-            String val = bindings.get(key);
-            return Double.valueOf(val);
+    @Test
+    public final void testDropAggregateData() {
+        final int MAX_NUM_TRAINING_DATA = 5000;
+        final double passingQual = 400.0;
+        final VariantRecalibratorArgumentCollection VRAC = new VariantRecalibratorArgumentCollection();
+        VRAC.MAX_NUM_TRAINING_DATA = MAX_NUM_TRAINING_DATA;
+
+        VariantDataManager vdm = new VariantDataManager(new ArrayList<String>(), VRAC);
+        final List<VariantDatum> theData = new ArrayList<>();
+        for( int iii = 0; iii < MAX_NUM_TRAINING_DATA * 10; iii++) {
+            final VariantDatum datum = new VariantDatum();
+            datum.atTrainingSite = true;
+            datum.isAggregate = false;
+            datum.failingSTDThreshold = false;
+            datum.originalQual = passingQual;
+            theData.add(datum);
         }
-        else if ( required ) {
-            throw new UserException.MalformedFile("Malformed tranches file.  Missing required key " + key);
+
+        for( int iii = 0; iii < MAX_NUM_TRAINING_DATA * 2; iii++) {
+            final VariantDatum datum = new VariantDatum();
+            datum.atTrainingSite = false;
+            datum.isAggregate = true;
+            datum.failingSTDThreshold = false;
+            datum.originalQual = passingQual;
+            theData.add(datum);
         }
-        else
-            return -1;
-    }
 
-    private static int getInteger(Map<String,String> bindings, String key, boolean required) {
-        if ( bindings.containsKey(key) )
-            return Integer.valueOf(bindings.get(key));
-        else if ( required ) {
-            throw new UserException.MalformedFile("Malformed tranches file.  Missing required key " + key);
-        }
-        else
-            return -1;
-    }
+        vdm.setData(theData);
+        vdm.dropAggregateData();
 
-    /**
-     * Returns a list of tranches, sorted from most to least specific, read in from file f
-     *
-     * @param f
-     * @return
-     */
-    public static List<Tranche> readTranches(File f) {
-        String[] header = null;
-        List<Tranche> tranches = new ArrayList<Tranche>();
-
-        try {
-            for( final String line : new XReadLines(f) ) {
-                if ( line.startsWith("#") )
-                    continue;
-
-                final String[] vals = line.split(",");
-                if( header == null ) {
-                    header = vals;
-                    if ( header.length == 5 || header.length == 8 || header.length == 10 )
-                        // old style tranches file, throw an error
-                        throw new UserException.MalformedFile(f, "Unfortunately your tranches file is from a previous version of this tool and cannot be used with the latest code.  Please rerun VariantRecalibrator");
-                    if ( header.length != 11 )
-                        throw new UserException.MalformedFile(f, "Expected 11 elements in header line " + line);
-                } else {
-                    if ( header.length != vals.length )
-                        throw new UserException.MalformedFile(f, "Line had too few/many fields.  Header = " + header.length + " vals " + vals.length + ". The line was: " + line);
-
-                    Map<String,String> bindings = new HashMap<String, String>();
-                    for ( int i = 0; i < vals.length; i++ ) bindings.put(header[i], vals[i]);
-                    tranches.add(new Tranche(getDouble(bindings,"targetTruthSensitivity", true),
-                            getDouble(bindings,"minVQSLod", true),
-                            getInteger(bindings,"numKnown", false),
-                            getDouble(bindings,"knownTiTv", false),
-                            getInteger(bindings,"numNovel", true),
-                            getDouble(bindings,"novelTiTv", true),
-                            getInteger(bindings,"accessibleTruthSites", false),
-                            getInteger(bindings,"callsAtTruthSites", false),
-                            VariantRecalibratorArgumentCollection.parseString(bindings.get("model")),
-                            bindings.get("filterName")));
-                }
-            }
-
-            Collections.sort( tranches, new TrancheTruthSensitivityComparator() );
-            return tranches;
-        } catch( FileNotFoundException e ) {
-            throw new UserException.CouldNotReadInputFile(f, e);
+        for( final VariantDatum datum : vdm.getData() ) {
+            Assert.assertFalse( datum.isAggregate );
         }
     }
 }

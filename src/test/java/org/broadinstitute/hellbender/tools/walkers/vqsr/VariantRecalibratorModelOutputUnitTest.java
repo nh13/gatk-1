@@ -51,170 +51,164 @@
 
 package org.broadinstitute.gatk.tools.walkers.variantrecalibration;
 
-import org.broadinstitute.gatk.utils.exceptions.ReviewedGATKException;
-import org.broadinstitute.gatk.utils.exceptions.UserException;
-import org.broadinstitute.gatk.utils.text.XReadLines;
+import static org.testng.Assert.*;
 
-import java.io.*;
-import java.util.*;
+import Jama.Matrix;
+import org.apache.commons.lang.StringUtils;
+import org.apache.log4j.Logger;
+import org.broadinstitute.gatk.utils.report.GATKReport;
+import org.broadinstitute.gatk.utils.report.GATKReportTable;
+import org.testng.Assert;
+import org.testng.annotations.Test;
 
-/**
- * Created by IntelliJ IDEA.
- * User: rpoplin
- * Date: Mar 10, 2011
- */
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
 
-public class Tranche {
-    private static final int CURRENT_VERSION = 5;
+public class VariantRecalibratorModelOutputUnitTest {
+    protected final static Logger logger = Logger.getLogger(VariantRecalibratorModelOutputUnitTest.class);
+    private final boolean printTables = true;
 
-    public double ts, minVQSLod, knownTiTv, novelTiTv;
-    public int numKnown,numNovel;
-    public String name;
-    public VariantRecalibratorArgumentCollection.Mode model;
+    @Test
+    public void testVQSRModelOutput() {
+        final int numAnnotations = 6;
+        final double shrinkage = 1.0;
+        final double dirichlet = 0.001;
+        final double priorCounts = 20.0;
+        final int numGoodGaussians = 2;
+        final int numBadGaussians = 1;
+        final double epsilon = 1e-6;
 
-    int accessibleTruthSites = 0;
-    int callsAtTruthSites = 0;
+        Random rand = new Random(12878);
+        MultivariateGaussian goodGaussian1 = new MultivariateGaussian(numAnnotations);
+        goodGaussian1.initializeRandomMu(rand);
+        goodGaussian1.initializeRandomSigma(rand);
 
-    public Tranche(double ts, double minVQSLod, int numKnown, double knownTiTv, int numNovel, double novelTiTv, int accessibleTruthSites, int callsAtTruthSites, VariantRecalibratorArgumentCollection.Mode model) {
-        this(ts, minVQSLod, numKnown, knownTiTv, numNovel, novelTiTv, accessibleTruthSites, callsAtTruthSites, model, "anonymous");
-    }
+        MultivariateGaussian goodGaussian2 = new MultivariateGaussian(numAnnotations);
+        goodGaussian2.initializeRandomMu(rand);
+        goodGaussian2.initializeRandomSigma(rand);
 
-    public Tranche(double ts, double minVQSLod, int numKnown, double knownTiTv, int numNovel, double novelTiTv, int accessibleTruthSites, int callsAtTruthSites, VariantRecalibratorArgumentCollection.Mode model, String name ) {
-        this.ts = ts;
-        this.minVQSLod = minVQSLod;
-        this.novelTiTv = novelTiTv;
-        this.numNovel = numNovel;
-        this.knownTiTv = knownTiTv;
-        this.numKnown = numKnown;
-        this.model = model;
-        this.name = name;
+        MultivariateGaussian badGaussian1 = new MultivariateGaussian(numAnnotations);
+        badGaussian1.initializeRandomMu(rand);
+        badGaussian1.initializeRandomSigma(rand);
 
-        this.accessibleTruthSites = accessibleTruthSites;
-        this.callsAtTruthSites = callsAtTruthSites;
+        List<MultivariateGaussian> goodGaussianList = new ArrayList<>();
+        goodGaussianList.add(goodGaussian1);
+        goodGaussianList.add(goodGaussian2);
 
-        if ( ts < 0.0 || ts > 100.0)
-            throw new UserException("Target FDR is unreasonable " + ts);
+        List<MultivariateGaussian> badGaussianList = new ArrayList<>();
+        badGaussianList.add(badGaussian1);
 
-        if ( numKnown < 0 || numNovel < 0)
-            throw new ReviewedGATKException("Invalid tranche - no. variants is < 0 : known " + numKnown + " novel " + numNovel);
+        GaussianMixtureModel goodModel = new GaussianMixtureModel(goodGaussianList, shrinkage, dirichlet, priorCounts);
+        GaussianMixtureModel badModel = new GaussianMixtureModel(badGaussianList, shrinkage, dirichlet, priorCounts);
 
-        if ( name == null )
-            throw new ReviewedGATKException("BUG -- name cannot be null");
-    }
+        if (printTables) {
+            System.out.println("Good model mean matrix:");
+            System.out.println(vectorToString(goodGaussian1.mu));
+            System.out.println(vectorToString(goodGaussian2.mu));
+            System.out.println("\n\n");
 
-    private double getTruthSensitivity() {
-        return accessibleTruthSites > 0 ? callsAtTruthSites / (1.0*accessibleTruthSites) : 0.0;
-    }
+            System.out.println("Good model covariance matrices:");
+            goodGaussian1.sigma.print(10, 3);
+            goodGaussian2.sigma.print(10, 3);
+            System.out.println("\n\n");
 
-    public static class TrancheTruthSensitivityComparator implements Comparator<Tranche>, Serializable {
-        @Override
-        public int compare(final Tranche tranche1, final Tranche tranche2) {
-            return Double.compare(tranche1.ts, tranche2.ts);
-        }
-    }
+            System.out.println("Bad model mean matrix:\n");
+            System.out.println(vectorToString(badGaussian1.mu));
+            System.out.println("\n\n");
 
-    @Override
-    public String toString() {
-        return String.format("Tranche ts=%.2f minVQSLod=%.4f known=(%d @ %.4f) novel=(%d @ %.4f) truthSites(%d accessible, %d called), name=%s]",
-                ts, minVQSLod, numKnown, knownTiTv, numNovel, novelTiTv, accessibleTruthSites, callsAtTruthSites, name);
-    }
-
-    /**
-     * Returns an appropriately formatted string representing the raw tranches file on disk.
-     *
-     * @param tranches
-     * @return
-     */
-    public static String tranchesString( final List<Tranche> tranches ) {
-        final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-        final PrintStream stream = new PrintStream(bytes);
-
-        if( tranches.size() > 1 )
-            Collections.sort( tranches, new TrancheTruthSensitivityComparator() );
-
-        stream.println("# Variant quality score tranches file");
-        stream.println("# Version number " + CURRENT_VERSION);
-        stream.println("targetTruthSensitivity,numKnown,numNovel,knownTiTv,novelTiTv,minVQSLod,filterName,model,accessibleTruthSites,callsAtTruthSites,truthSensitivity");
-
-        Tranche prev = null;
-        for ( Tranche t : tranches ) {
-            stream.printf("%.2f,%d,%d,%.4f,%.4f,%.4f,VQSRTranche%s%.2fto%.2f,%s,%d,%d,%.4f%n",
-                    t.ts, t.numKnown, t.numNovel, t.knownTiTv, t.novelTiTv, t.minVQSLod, t.model.toString(),
-                    (prev == null ? 0.0 : prev.ts), t.ts, t.model.toString(), t.accessibleTruthSites, t.callsAtTruthSites, t.getTruthSensitivity());
-            prev = t;
+            System.out.println("Bad model covariance matrix:");
+            badGaussian1.sigma.print(10, 3);
         }
 
-        return bytes.toString();
-    }
+        VariantRecalibrator vqsr = new VariantRecalibrator();
+        List<String> annotationList = new ArrayList<>();
+        annotationList.add("QD");
+        annotationList.add("MQ");
+        annotationList.add("FS");
+        annotationList.add("SOR");
+        annotationList.add("ReadPosRankSum");
+        annotationList.add("MQRankSum");
 
-    private static double getDouble(Map<String,String> bindings, String key, boolean required) {
-        if ( bindings.containsKey(key) ) {
-            String val = bindings.get(key);
-            return Double.valueOf(val);
+
+        GATKReport report = vqsr.writeModelReport(goodModel, badModel, annotationList);
+        if(printTables)
+            report.print(System.out);
+
+        //Check values for Gaussian means
+        GATKReportTable goodMus = report.getTable("PositiveModelMeans");
+        for(int i = 0; i < annotationList.size(); i++) {
+            Assert.assertEquals(goodGaussian1.mu[i], (Double)goodMus.get(0,annotationList.get(i)), epsilon);
         }
-        else if ( required ) {
-            throw new UserException.MalformedFile("Malformed tranches file.  Missing required key " + key);
+        for(int i = 0; i < annotationList.size(); i++) {
+            Assert.assertEquals(goodGaussian2.mu[i], (Double)goodMus.get(1,annotationList.get(i)), epsilon);
         }
-        else
-            return -1;
-    }
 
-    private static int getInteger(Map<String,String> bindings, String key, boolean required) {
-        if ( bindings.containsKey(key) )
-            return Integer.valueOf(bindings.get(key));
-        else if ( required ) {
-            throw new UserException.MalformedFile("Malformed tranches file.  Missing required key " + key);
+        GATKReportTable badMus = report.getTable("NegativeModelMeans");
+        for(int i = 0; i < annotationList.size(); i++) {
+            Assert.assertEquals(badGaussian1.mu[i], (Double)badMus.get(0,annotationList.get(i)), epsilon);
         }
-        else
-            return -1;
-    }
 
-    /**
-     * Returns a list of tranches, sorted from most to least specific, read in from file f
-     *
-     * @param f
-     * @return
-     */
-    public static List<Tranche> readTranches(File f) {
-        String[] header = null;
-        List<Tranche> tranches = new ArrayList<Tranche>();
-
-        try {
-            for( final String line : new XReadLines(f) ) {
-                if ( line.startsWith("#") )
-                    continue;
-
-                final String[] vals = line.split(",");
-                if( header == null ) {
-                    header = vals;
-                    if ( header.length == 5 || header.length == 8 || header.length == 10 )
-                        // old style tranches file, throw an error
-                        throw new UserException.MalformedFile(f, "Unfortunately your tranches file is from a previous version of this tool and cannot be used with the latest code.  Please rerun VariantRecalibrator");
-                    if ( header.length != 11 )
-                        throw new UserException.MalformedFile(f, "Expected 11 elements in header line " + line);
-                } else {
-                    if ( header.length != vals.length )
-                        throw new UserException.MalformedFile(f, "Line had too few/many fields.  Header = " + header.length + " vals " + vals.length + ". The line was: " + line);
-
-                    Map<String,String> bindings = new HashMap<String, String>();
-                    for ( int i = 0; i < vals.length; i++ ) bindings.put(header[i], vals[i]);
-                    tranches.add(new Tranche(getDouble(bindings,"targetTruthSensitivity", true),
-                            getDouble(bindings,"minVQSLod", true),
-                            getInteger(bindings,"numKnown", false),
-                            getDouble(bindings,"knownTiTv", false),
-                            getInteger(bindings,"numNovel", true),
-                            getDouble(bindings,"novelTiTv", true),
-                            getInteger(bindings,"accessibleTruthSites", false),
-                            getInteger(bindings,"callsAtTruthSites", false),
-                            VariantRecalibratorArgumentCollection.parseString(bindings.get("model")),
-                            bindings.get("filterName")));
-                }
+        //Check values for Gaussian covariances
+        GATKReportTable goodSigma = report.getTable("PositiveModelCovariances");
+        for(int i = 0; i < annotationList.size(); i++) {
+            for(int j = 0; j < annotationList.size(); j++) {
+                Assert.assertEquals(goodGaussian1.sigma.get(i,j), (Double)goodSigma.get(i,annotationList.get(j)), epsilon);
             }
+        }
 
-            Collections.sort( tranches, new TrancheTruthSensitivityComparator() );
-            return tranches;
-        } catch( FileNotFoundException e ) {
-            throw new UserException.CouldNotReadInputFile(f, e);
+        //add annotationList.size() to row indexes for second Gaussian because the matrices are concatenated by row in the report
+        for(int i = 0; i < annotationList.size(); i++) {
+            for(int j = 0; j < annotationList.size(); j++) {
+                Assert.assertEquals(goodGaussian2.sigma.get(i,j), (Double)goodSigma.get(annotationList.size()+i,annotationList.get(j)), epsilon);
+            }
+        }
+
+        GATKReportTable badSigma = report.getTable("NegativeModelCovariances");
+        for(int i = 0; i < annotationList.size(); i++) {
+            for(int j = 0; j < annotationList.size(); j++) {
+                Assert.assertEquals(badGaussian1.sigma.get(i,j), (Double)badSigma.get(i,annotationList.get(j)), epsilon);
+            }
         }
     }
+
+    @Test
+    //This is tested separately to avoid setting up a VariantDataManager and populating it with fake data
+    public void testAnnotationNormalizationOutput() {
+        final VariantRecalibrator vqsr = new VariantRecalibrator();
+        final List<String> annotationList = new ArrayList<>();
+        annotationList.add("QD");
+        annotationList.add("FS");
+        annotationList.add("ReadPosRankSum");
+        annotationList.add("MQ");
+        annotationList.add("MQRankSum");
+        annotationList.add("SOR");
+
+        final double epsilon = 1e-6;
+
+        double[] meanVector = {16.13, 2.45, 0.37, 59.08, 0.14, 0.91};
+        final String columnName = "Mean";
+        final String formatString = "%.3f";
+        GATKReportTable vectorTable = vqsr.makeVectorTable("AnnotationMeans", "Mean for each annotation, used to normalize data", annotationList, meanVector, columnName, formatString);
+        for(int i = 0; i < annotationList.size(); i++) {
+            Assert.assertEquals(meanVector[i], (Double)vectorTable.get(i, columnName), epsilon);
+        }
+
+        if (printTables) {
+            final GATKReport report = new GATKReport();
+            report.addTable(vectorTable);
+            report.print(System.out);
+        }
+    }
+
+    private String vectorToString(double[] meanVec) {
+        String returnString = "";
+        for (int j = 0; j < meanVec.length; j++) {
+            returnString += String.format("%.3f", meanVec[j]);
+            if (j < meanVec.length-1)
+                returnString += ",";
+        }
+        return returnString;
+    }
+
 }

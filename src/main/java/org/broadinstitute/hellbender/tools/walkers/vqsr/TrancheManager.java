@@ -51,12 +51,15 @@
 
 package org.broadinstitute.gatk.tools.walkers.variantrecalibration;
 
-import org.broadinstitute.gatk.utils.exceptions.ReviewedGATKException;
+import org.apache.log4j.Logger;
 import org.broadinstitute.gatk.utils.exceptions.UserException;
-import org.broadinstitute.gatk.utils.text.XReadLines;
 
-import java.io.*;
-import java.util.*;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.PrintStream;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * Created by IntelliJ IDEA.
@@ -64,157 +67,204 @@ import java.util.*;
  * Date: Mar 10, 2011
  */
 
-public class Tranche {
-    private static final int CURRENT_VERSION = 5;
+public class TrancheManager {
 
-    public double ts, minVQSLod, knownTiTv, novelTiTv;
-    public int numKnown,numNovel;
-    public String name;
-    public VariantRecalibratorArgumentCollection.Mode model;
+    protected final static Logger logger = Logger.getLogger(TrancheManager.class);
 
-    int accessibleTruthSites = 0;
-    int callsAtTruthSites = 0;
+    // ---------------------------------------------------------------------------------------------------------
+    //
+    // Code to determine FDR tranches for VariantDatum[]
+    //
+    // ---------------------------------------------------------------------------------------------------------
 
-    public Tranche(double ts, double minVQSLod, int numKnown, double knownTiTv, int numNovel, double novelTiTv, int accessibleTruthSites, int callsAtTruthSites, VariantRecalibratorArgumentCollection.Mode model) {
-        this(ts, minVQSLod, numKnown, knownTiTv, numNovel, novelTiTv, accessibleTruthSites, callsAtTruthSites, model, "anonymous");
-    }
+    public static abstract class SelectionMetric {
+        String name = null;
 
-    public Tranche(double ts, double minVQSLod, int numKnown, double knownTiTv, int numNovel, double novelTiTv, int accessibleTruthSites, int callsAtTruthSites, VariantRecalibratorArgumentCollection.Mode model, String name ) {
-        this.ts = ts;
-        this.minVQSLod = minVQSLod;
-        this.novelTiTv = novelTiTv;
-        this.numNovel = numNovel;
-        this.knownTiTv = knownTiTv;
-        this.numKnown = numKnown;
-        this.model = model;
-        this.name = name;
-
-        this.accessibleTruthSites = accessibleTruthSites;
-        this.callsAtTruthSites = callsAtTruthSites;
-
-        if ( ts < 0.0 || ts > 100.0)
-            throw new UserException("Target FDR is unreasonable " + ts);
-
-        if ( numKnown < 0 || numNovel < 0)
-            throw new ReviewedGATKException("Invalid tranche - no. variants is < 0 : known " + numKnown + " novel " + numNovel);
-
-        if ( name == null )
-            throw new ReviewedGATKException("BUG -- name cannot be null");
-    }
-
-    private double getTruthSensitivity() {
-        return accessibleTruthSites > 0 ? callsAtTruthSites / (1.0*accessibleTruthSites) : 0.0;
-    }
-
-    public static class TrancheTruthSensitivityComparator implements Comparator<Tranche>, Serializable {
-        @Override
-        public int compare(final Tranche tranche1, final Tranche tranche2) {
-            return Double.compare(tranche1.ts, tranche2.ts);
-        }
-    }
-
-    @Override
-    public String toString() {
-        return String.format("Tranche ts=%.2f minVQSLod=%.4f known=(%d @ %.4f) novel=(%d @ %.4f) truthSites(%d accessible, %d called), name=%s]",
-                ts, minVQSLod, numKnown, knownTiTv, numNovel, novelTiTv, accessibleTruthSites, callsAtTruthSites, name);
-    }
-
-    /**
-     * Returns an appropriately formatted string representing the raw tranches file on disk.
-     *
-     * @param tranches
-     * @return
-     */
-    public static String tranchesString( final List<Tranche> tranches ) {
-        final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-        final PrintStream stream = new PrintStream(bytes);
-
-        if( tranches.size() > 1 )
-            Collections.sort( tranches, new TrancheTruthSensitivityComparator() );
-
-        stream.println("# Variant quality score tranches file");
-        stream.println("# Version number " + CURRENT_VERSION);
-        stream.println("targetTruthSensitivity,numKnown,numNovel,knownTiTv,novelTiTv,minVQSLod,filterName,model,accessibleTruthSites,callsAtTruthSites,truthSensitivity");
-
-        Tranche prev = null;
-        for ( Tranche t : tranches ) {
-            stream.printf("%.2f,%d,%d,%.4f,%.4f,%.4f,VQSRTranche%s%.2fto%.2f,%s,%d,%d,%.4f%n",
-                    t.ts, t.numKnown, t.numNovel, t.knownTiTv, t.novelTiTv, t.minVQSLod, t.model.toString(),
-                    (prev == null ? 0.0 : prev.ts), t.ts, t.model.toString(), t.accessibleTruthSites, t.callsAtTruthSites, t.getTruthSensitivity());
-            prev = t;
+        public SelectionMetric(String name) {
+            this.name = name;
         }
 
-        return bytes.toString();
+        public String getName() { return name; }
+
+        public abstract double getThreshold(double tranche);
+        public abstract double getTarget();
+        public abstract void calculateRunningMetric(List<VariantDatum> data);
+        public abstract double getRunningMetric(int i);
+        public abstract int datumValue(VariantDatum d);
     }
 
-    private static double getDouble(Map<String,String> bindings, String key, boolean required) {
-        if ( bindings.containsKey(key) ) {
-            String val = bindings.get(key);
-            return Double.valueOf(val);
+    public static class NovelTiTvMetric extends SelectionMetric {
+        double[] runningTiTv;
+        double targetTiTv = 0;
+
+        public NovelTiTvMetric(double target) {
+            super("NovelTiTv");
+            targetTiTv = target; // compute the desired TiTv
         }
-        else if ( required ) {
-            throw new UserException.MalformedFile("Malformed tranches file.  Missing required key " + key);
+
+        public double getThreshold(double tranche) {
+            return fdrToTiTv(tranche, targetTiTv);
         }
-        else
-            return -1;
-    }
 
-    private static int getInteger(Map<String,String> bindings, String key, boolean required) {
-        if ( bindings.containsKey(key) )
-            return Integer.valueOf(bindings.get(key));
-        else if ( required ) {
-            throw new UserException.MalformedFile("Malformed tranches file.  Missing required key " + key);
-        }
-        else
-            return -1;
-    }
+        public double getTarget() { return targetTiTv; }
 
-    /**
-     * Returns a list of tranches, sorted from most to least specific, read in from file f
-     *
-     * @param f
-     * @return
-     */
-    public static List<Tranche> readTranches(File f) {
-        String[] header = null;
-        List<Tranche> tranches = new ArrayList<Tranche>();
+        public void calculateRunningMetric(List<VariantDatum> data) {
+            int ti = 0, tv = 0;
+            runningTiTv = new double[data.size()];
 
-        try {
-            for( final String line : new XReadLines(f) ) {
-                if ( line.startsWith("#") )
-                    continue;
-
-                final String[] vals = line.split(",");
-                if( header == null ) {
-                    header = vals;
-                    if ( header.length == 5 || header.length == 8 || header.length == 10 )
-                        // old style tranches file, throw an error
-                        throw new UserException.MalformedFile(f, "Unfortunately your tranches file is from a previous version of this tool and cannot be used with the latest code.  Please rerun VariantRecalibrator");
-                    if ( header.length != 11 )
-                        throw new UserException.MalformedFile(f, "Expected 11 elements in header line " + line);
-                } else {
-                    if ( header.length != vals.length )
-                        throw new UserException.MalformedFile(f, "Line had too few/many fields.  Header = " + header.length + " vals " + vals.length + ". The line was: " + line);
-
-                    Map<String,String> bindings = new HashMap<String, String>();
-                    for ( int i = 0; i < vals.length; i++ ) bindings.put(header[i], vals[i]);
-                    tranches.add(new Tranche(getDouble(bindings,"targetTruthSensitivity", true),
-                            getDouble(bindings,"minVQSLod", true),
-                            getInteger(bindings,"numKnown", false),
-                            getDouble(bindings,"knownTiTv", false),
-                            getInteger(bindings,"numNovel", true),
-                            getDouble(bindings,"novelTiTv", true),
-                            getInteger(bindings,"accessibleTruthSites", false),
-                            getInteger(bindings,"callsAtTruthSites", false),
-                            VariantRecalibratorArgumentCollection.parseString(bindings.get("model")),
-                            bindings.get("filterName")));
+            for ( int i = data.size() - 1; i >= 0; i-- ) {
+                VariantDatum datum = data.get(i);
+                if ( ! datum.isKnown ) {
+                    if ( datum.isTransition ) { ti++; } else { tv++; }
+                    runningTiTv[i] = ti / Math.max(1.0 * tv, 1.0);
                 }
             }
-
-            Collections.sort( tranches, new TrancheTruthSensitivityComparator() );
-            return tranches;
-        } catch( FileNotFoundException e ) {
-            throw new UserException.CouldNotReadInputFile(f, e);
         }
+
+        public double getRunningMetric(int i) {
+            return runningTiTv[i];
+        }
+
+        public int datumValue(VariantDatum d) {
+            return d.isTransition ? 1 : 0;
+        }
+    }
+
+    public static class TruthSensitivityMetric extends SelectionMetric {
+        double[] runningSensitivity;
+        int nTrueSites = 0;
+
+        public TruthSensitivityMetric(int nTrueSites) {
+            super("TruthSensitivity");
+            this.nTrueSites = nTrueSites;
+        }
+
+        public double getThreshold(double tranche) {
+            return 1.0 - tranche/100.0; // tranche of 1 => 99% sensitivity target
+        }
+
+        public double getTarget() { return 1.0; }
+
+        public void calculateRunningMetric(List<VariantDatum> data) {
+            int nCalledAtTruth = 0;
+            runningSensitivity = new double[data.size()];
+
+            for ( int i = data.size() - 1; i >= 0; i-- ) {
+                VariantDatum datum = data.get(i);
+                nCalledAtTruth += datum.atTruthSite ? 1 : 0;
+                runningSensitivity[i] = 1 - nCalledAtTruth / (1.0 * nTrueSites);
+            }
+        }
+
+        public double getRunningMetric(int i) {
+            return runningSensitivity[i];
+        }
+
+        public int datumValue(VariantDatum d) {
+            return d.atTruthSite ? 1 : 0;
+        }
+    }
+
+    public static List<Tranche> findTranches( final List<VariantDatum> data, final List<Double> tranches, final SelectionMetric metric, final VariantRecalibratorArgumentCollection.Mode model ) {
+        return findTranches( data, tranches, metric, model, null );
+    }
+
+    public static List<Tranche> findTranches( final List<VariantDatum> data, final List<Double> trancheThresholds, final SelectionMetric metric, final VariantRecalibratorArgumentCollection.Mode model, final File debugFile ) {
+        logger.info(String.format("Finding %d tranches for %d variants", trancheThresholds.size(), data.size()));
+
+        Collections.sort( data, new VariantDatum.VariantDatumLODComparator() );
+        metric.calculateRunningMetric(data);
+
+        if ( debugFile != null) { writeTranchesDebuggingInfo(debugFile, data, metric); }
+
+        List<Tranche> tranches = new ArrayList<>();
+        for ( double trancheThreshold : trancheThresholds ) {
+            Tranche t = findTranche(data, metric, trancheThreshold, model);
+
+            if ( t == null ) {
+                if ( tranches.size() == 0 )
+                    throw new UserException(String.format("Couldn't find any tranche containing variants with a %s > %.2f. Are you sure the truth files contain unfiltered variants which overlap the input data?", metric.getName(), metric.getThreshold(trancheThreshold)));
+                break;
+            }
+
+            tranches.add(t);
+        }
+
+        return tranches;
+    }
+
+    private static void writeTranchesDebuggingInfo(File f, List<VariantDatum> tranchesData, SelectionMetric metric ) {
+        try {
+            PrintStream out = new PrintStream(f);
+            out.println("Qual metricValue runningValue");
+            for ( int i = 0; i < tranchesData.size(); i++ ) {
+                VariantDatum  d = tranchesData.get(i);
+                int score = metric.datumValue(d);
+                double runningValue = metric.getRunningMetric(i);
+                out.printf("%.4f %d %.4f%n", d.lod, score, runningValue);
+            }
+            out.close();
+        } catch (FileNotFoundException e) {
+            throw new UserException.CouldNotCreateOutputFile(f, e);
+        }
+    }
+
+    public static Tranche findTranche( final List<VariantDatum> data, final SelectionMetric metric, final double trancheThreshold, final VariantRecalibratorArgumentCollection.Mode model ) {
+        logger.info(String.format("  Tranche threshold %.2f => selection metric threshold %.3f", trancheThreshold, metric.getThreshold(trancheThreshold)));
+
+        double metricThreshold = metric.getThreshold(trancheThreshold);
+        int n = data.size();
+        for ( int i = 0; i < n; i++ ) {
+            if ( metric.getRunningMetric(i) >= metricThreshold ) {
+                // we've found the largest group of variants with sensitivity >= our target truth sensitivity
+                Tranche t = trancheOfVariants(data, i, trancheThreshold, model);
+                logger.info(String.format("  Found tranche for %.3f: %.3f threshold starting with variant %d; running score is %.3f ",
+                        trancheThreshold, metricThreshold, i, metric.getRunningMetric(i)));
+                logger.info(String.format("  Tranche is %s", t));
+                return t;
+            }
+        }
+
+        return null;
+    }
+
+    public static Tranche trancheOfVariants( final List<VariantDatum> data, int minI, double ts, final VariantRecalibratorArgumentCollection.Mode model ) {
+        int numKnown = 0, numNovel = 0, knownTi = 0, knownTv = 0, novelTi = 0, novelTv = 0;
+
+        double minLod = data.get(minI).lod;
+        for ( final VariantDatum datum : data ) {
+            if ( datum.lod >= minLod ) {
+                //if( ! datum.isKnown ) System.out.println(datum.pos);
+                if ( datum.isKnown ) {
+                    numKnown++;
+                    if( datum.isSNP ) {
+                        if ( datum.isTransition ) { knownTi++; } else { knownTv++; }
+                    }
+                } else {
+                    numNovel++;
+                    if( datum.isSNP ) {
+                        if ( datum.isTransition ) { novelTi++; } else { novelTv++; }
+                    }
+                }
+            }
+        }
+
+        double knownTiTv = knownTi / Math.max(1.0 * knownTv, 1.0);
+        double novelTiTv = novelTi / Math.max(1.0 * novelTv, 1.0);
+
+        int accessibleTruthSites = countCallsAtTruth(data, Double.NEGATIVE_INFINITY);
+        int nCallsAtTruth = countCallsAtTruth(data, minLod);
+
+        return new Tranche(ts, minLod, numKnown, knownTiTv, numNovel, novelTiTv, accessibleTruthSites, nCallsAtTruth, model);
+    }
+
+    public static double fdrToTiTv(double desiredFDR, double targetTiTv) {
+            return (1.0 - desiredFDR / 100.0) * (targetTiTv - 0.5) + 0.5;
+    }
+
+    public static int countCallsAtTruth(final List<VariantDatum> data, double minLOD ) {
+        int n = 0;
+        for ( VariantDatum d : data ) { n += (d.atTruthSite && d.lod >= minLOD ? 1 : 0); }
+        return n;
     }
 }

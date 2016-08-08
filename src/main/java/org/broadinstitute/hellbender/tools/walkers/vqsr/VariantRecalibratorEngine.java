@@ -51,170 +51,129 @@
 
 package org.broadinstitute.gatk.tools.walkers.variantrecalibration;
 
-import org.broadinstitute.gatk.utils.exceptions.ReviewedGATKException;
-import org.broadinstitute.gatk.utils.exceptions.UserException;
-import org.broadinstitute.gatk.utils.text.XReadLines;
+import org.apache.log4j.Logger;
+import org.broadinstitute.gatk.utils.Utils;
 
-import java.io.*;
-import java.util.*;
+import java.util.List;
 
 /**
  * Created by IntelliJ IDEA.
  * User: rpoplin
- * Date: Mar 10, 2011
+ * Date: Mar 4, 2011
  */
 
-public class Tranche {
-    private static final int CURRENT_VERSION = 5;
+public class VariantRecalibratorEngine {
 
-    public double ts, minVQSLod, knownTiTv, novelTiTv;
-    public int numKnown,numNovel;
-    public String name;
-    public VariantRecalibratorArgumentCollection.Mode model;
+    /////////////////////////////
+    // Private Member Variables
+    /////////////////////////////
 
-    int accessibleTruthSites = 0;
-    int callsAtTruthSites = 0;
+    protected final static Logger logger = Logger.getLogger(VariantRecalibratorEngine.class);
+    public final static double MIN_ACCEPTABLE_LOD_SCORE = -20000.0;
 
-    public Tranche(double ts, double minVQSLod, int numKnown, double knownTiTv, int numNovel, double novelTiTv, int accessibleTruthSites, int callsAtTruthSites, VariantRecalibratorArgumentCollection.Mode model) {
-        this(ts, minVQSLod, numKnown, knownTiTv, numNovel, novelTiTv, accessibleTruthSites, callsAtTruthSites, model, "anonymous");
+    // the unified argument collection
+    final private VariantRecalibratorArgumentCollection VRAC;
+
+    private final static double MIN_PROB_CONVERGENCE = 2E-3;
+
+    /////////////////////////////
+    // Public Methods to interface with the Engine
+    /////////////////////////////
+
+    public VariantRecalibratorEngine( final VariantRecalibratorArgumentCollection VRAC ) {
+        this.VRAC = VRAC;
     }
 
-    public Tranche(double ts, double minVQSLod, int numKnown, double knownTiTv, int numNovel, double novelTiTv, int accessibleTruthSites, int callsAtTruthSites, VariantRecalibratorArgumentCollection.Mode model, String name ) {
-        this.ts = ts;
-        this.minVQSLod = minVQSLod;
-        this.novelTiTv = novelTiTv;
-        this.numNovel = numNovel;
-        this.knownTiTv = knownTiTv;
-        this.numKnown = numKnown;
-        this.model = model;
-        this.name = name;
+    public GaussianMixtureModel generateModel( final List<VariantDatum> data, final int maxGaussians ) {
+        if( data == null || data.isEmpty() ) { throw new IllegalArgumentException("No data found."); }
+        if( maxGaussians <= 0 ) { throw new IllegalArgumentException("maxGaussians must be a positive integer but found: " + maxGaussians); }
 
-        this.accessibleTruthSites = accessibleTruthSites;
-        this.callsAtTruthSites = callsAtTruthSites;
-
-        if ( ts < 0.0 || ts > 100.0)
-            throw new UserException("Target FDR is unreasonable " + ts);
-
-        if ( numKnown < 0 || numNovel < 0)
-            throw new ReviewedGATKException("Invalid tranche - no. variants is < 0 : known " + numKnown + " novel " + numNovel);
-
-        if ( name == null )
-            throw new ReviewedGATKException("BUG -- name cannot be null");
+        final GaussianMixtureModel model = new GaussianMixtureModel( maxGaussians, data.get(0).annotations.length, VRAC.SHRINKAGE, VRAC.DIRICHLET_PARAMETER, VRAC.PRIOR_COUNTS );
+        variationalBayesExpectationMaximization( model, data );
+        return model;
     }
 
-    private double getTruthSensitivity() {
-        return accessibleTruthSites > 0 ? callsAtTruthSites / (1.0*accessibleTruthSites) : 0.0;
-    }
-
-    public static class TrancheTruthSensitivityComparator implements Comparator<Tranche>, Serializable {
-        @Override
-        public int compare(final Tranche tranche1, final Tranche tranche2) {
-            return Double.compare(tranche1.ts, tranche2.ts);
+    public void evaluateData( final List<VariantDatum> data, final GaussianMixtureModel model, final boolean evaluateContrastively ) {
+        if( !model.isModelReadyForEvaluation ) {
+            try {
+                model.precomputeDenominatorForEvaluation();
+            } catch( Exception e ) {
+                model.failedToConverge = true;
+                return;
+            }
         }
-    }
-
-    @Override
-    public String toString() {
-        return String.format("Tranche ts=%.2f minVQSLod=%.4f known=(%d @ %.4f) novel=(%d @ %.4f) truthSites(%d accessible, %d called), name=%s]",
-                ts, minVQSLod, numKnown, knownTiTv, numNovel, novelTiTv, accessibleTruthSites, callsAtTruthSites, name);
-    }
-
-    /**
-     * Returns an appropriately formatted string representing the raw tranches file on disk.
-     *
-     * @param tranches
-     * @return
-     */
-    public static String tranchesString( final List<Tranche> tranches ) {
-        final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-        final PrintStream stream = new PrintStream(bytes);
-
-        if( tranches.size() > 1 )
-            Collections.sort( tranches, new TrancheTruthSensitivityComparator() );
-
-        stream.println("# Variant quality score tranches file");
-        stream.println("# Version number " + CURRENT_VERSION);
-        stream.println("targetTruthSensitivity,numKnown,numNovel,knownTiTv,novelTiTv,minVQSLod,filterName,model,accessibleTruthSites,callsAtTruthSites,truthSensitivity");
-
-        Tranche prev = null;
-        for ( Tranche t : tranches ) {
-            stream.printf("%.2f,%d,%d,%.4f,%.4f,%.4f,VQSRTranche%s%.2fto%.2f,%s,%d,%d,%.4f%n",
-                    t.ts, t.numKnown, t.numNovel, t.knownTiTv, t.novelTiTv, t.minVQSLod, t.model.toString(),
-                    (prev == null ? 0.0 : prev.ts), t.ts, t.model.toString(), t.accessibleTruthSites, t.callsAtTruthSites, t.getTruthSensitivity());
-            prev = t;
-        }
-
-        return bytes.toString();
-    }
-
-    private static double getDouble(Map<String,String> bindings, String key, boolean required) {
-        if ( bindings.containsKey(key) ) {
-            String val = bindings.get(key);
-            return Double.valueOf(val);
-        }
-        else if ( required ) {
-            throw new UserException.MalformedFile("Malformed tranches file.  Missing required key " + key);
-        }
-        else
-            return -1;
-    }
-
-    private static int getInteger(Map<String,String> bindings, String key, boolean required) {
-        if ( bindings.containsKey(key) )
-            return Integer.valueOf(bindings.get(key));
-        else if ( required ) {
-            throw new UserException.MalformedFile("Malformed tranches file.  Missing required key " + key);
-        }
-        else
-            return -1;
-    }
-
-    /**
-     * Returns a list of tranches, sorted from most to least specific, read in from file f
-     *
-     * @param f
-     * @return
-     */
-    public static List<Tranche> readTranches(File f) {
-        String[] header = null;
-        List<Tranche> tranches = new ArrayList<Tranche>();
-
-        try {
-            for( final String line : new XReadLines(f) ) {
-                if ( line.startsWith("#") )
-                    continue;
-
-                final String[] vals = line.split(",");
-                if( header == null ) {
-                    header = vals;
-                    if ( header.length == 5 || header.length == 8 || header.length == 10 )
-                        // old style tranches file, throw an error
-                        throw new UserException.MalformedFile(f, "Unfortunately your tranches file is from a previous version of this tool and cannot be used with the latest code.  Please rerun VariantRecalibrator");
-                    if ( header.length != 11 )
-                        throw new UserException.MalformedFile(f, "Expected 11 elements in header line " + line);
-                } else {
-                    if ( header.length != vals.length )
-                        throw new UserException.MalformedFile(f, "Line had too few/many fields.  Header = " + header.length + " vals " + vals.length + ". The line was: " + line);
-
-                    Map<String,String> bindings = new HashMap<String, String>();
-                    for ( int i = 0; i < vals.length; i++ ) bindings.put(header[i], vals[i]);
-                    tranches.add(new Tranche(getDouble(bindings,"targetTruthSensitivity", true),
-                            getDouble(bindings,"minVQSLod", true),
-                            getInteger(bindings,"numKnown", false),
-                            getDouble(bindings,"knownTiTv", false),
-                            getInteger(bindings,"numNovel", true),
-                            getDouble(bindings,"novelTiTv", true),
-                            getInteger(bindings,"accessibleTruthSites", false),
-                            getInteger(bindings,"callsAtTruthSites", false),
-                            VariantRecalibratorArgumentCollection.parseString(bindings.get("model")),
-                            bindings.get("filterName")));
-                }
+        
+        logger.info("Evaluating full set of " + data.size() + " variants...");
+        for( final VariantDatum datum : data ) {
+            final double thisLod = evaluateDatum( datum, model );
+            if( Double.isNaN(thisLod) ) {
+                model.failedToConverge = true;
+                return;
             }
 
-            Collections.sort( tranches, new TrancheTruthSensitivityComparator() );
-            return tranches;
-        } catch( FileNotFoundException e ) {
-            throw new UserException.CouldNotReadInputFile(f, e);
+            datum.lod = ( evaluateContrastively ?
+                            ( Double.isInfinite(datum.lod) ? // positive model said negative infinity
+                                    ( MIN_ACCEPTABLE_LOD_SCORE + Utils.getRandomGenerator().nextDouble() * MIN_ACCEPTABLE_LOD_SCORE ) // Negative infinity lod values are possible when covariates are extremely far away from their tight Gaussians
+                                    : datum.prior + datum.lod - thisLod) // contrastive evaluation: (prior + positive model - negative model)
+                            : thisLod ); // positive model only so set the lod and return
         }
+    }
+
+    public void calculateWorstPerformingAnnotation( final List<VariantDatum> data, final GaussianMixtureModel goodModel, final GaussianMixtureModel badModel ) {
+        for( final VariantDatum datum : data ) {
+            int worstAnnotation = -1;
+            double minProb = Double.MAX_VALUE;
+            double worstValue = -1;
+            for( int iii = 0; iii < datum.annotations.length; iii++ ) {
+                final Double goodProbLog10 = goodModel.evaluateDatumInOneDimension(datum, iii);
+                final Double badProbLog10 = badModel.evaluateDatumInOneDimension(datum, iii);
+                if( goodProbLog10 != null && badProbLog10 != null ) {
+                    final double prob = goodProbLog10 - badProbLog10;
+                    if(prob < minProb) { minProb = prob; worstAnnotation = iii; worstValue = datum.annotations[iii];}
+                }
+            }
+            datum.worstAnnotation = worstAnnotation;
+            datum.worstValue = worstValue;
+        }
+    }
+
+
+    /////////////////////////////
+    // Private Methods used for generating a GaussianMixtureModel
+    /////////////////////////////
+
+    private void variationalBayesExpectationMaximization( final GaussianMixtureModel model, final List<VariantDatum> data ) {
+
+        model.initializeRandomModel( data, VRAC.NUM_KMEANS_ITERATIONS );
+
+        // The VBEM loop
+        model.normalizePMixtureLog10();
+        model.expectationStep( data );
+        double currentChangeInMixtureCoefficients;
+        int iteration = 0;
+        logger.info("Finished iteration " + iteration + ".");
+        while( iteration < VRAC.MAX_ITERATIONS ) {
+            iteration++;
+            model.maximizationStep( data );
+            currentChangeInMixtureCoefficients = model.normalizePMixtureLog10();
+            model.expectationStep( data );
+            if( iteration % 5 == 0 ) { // cut down on the number of output lines so that users can read the warning messages
+                logger.info("Finished iteration " + iteration + ". \tCurrent change in mixture coefficients = " + String.format("%.5f", currentChangeInMixtureCoefficients));
+            }
+            if( iteration > 2 && currentChangeInMixtureCoefficients < MIN_PROB_CONVERGENCE ) {
+                logger.info("Convergence after " + iteration + " iterations!");
+                break;
+            }
+        }
+
+        model.evaluateFinalModelParameters( data );
+    }
+
+    /////////////////////////////
+    // Private Methods used for evaluating data given a GaussianMixtureModel
+    /////////////////////////////
+
+    private double evaluateDatum( final VariantDatum datum, final GaussianMixtureModel model ) {
+        return model.evaluateDatum( datum );
     }
 }
