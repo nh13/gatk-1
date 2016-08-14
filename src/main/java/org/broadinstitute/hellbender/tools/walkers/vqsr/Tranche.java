@@ -1,86 +1,81 @@
-/*
-* By downloading the PROGRAM you agree to the following terms of use:
-* 
-* BROAD INSTITUTE
-* SOFTWARE LICENSE AGREEMENT
-* FOR ACADEMIC NON-COMMERCIAL RESEARCH PURPOSES ONLY
-* 
-* This Agreement is made between the Broad Institute, Inc. with a principal address at 415 Main Street, Cambridge, MA 02142 ("BROAD") and the LICENSEE and is effective at the date the downloading is completed ("EFFECTIVE DATE").
-* 
-* WHEREAS, LICENSEE desires to license the PROGRAM, as defined hereinafter, and BROAD wishes to have this PROGRAM utilized in the public interest, subject only to the royalty-free, nonexclusive, nontransferable license rights of the United States Government pursuant to 48 CFR 52.227-14; and
-* WHEREAS, LICENSEE desires to license the PROGRAM and BROAD desires to grant a license on the following terms and conditions.
-* NOW, THEREFORE, in consideration of the promises and covenants made herein, the parties hereto agree as follows:
-* 
-* 1. DEFINITIONS
-* 1.1 PROGRAM shall mean copyright in the object code and source code known as GATK3 and related documentation, if any, as they exist on the EFFECTIVE DATE and can be downloaded from http://www.broadinstitute.org/gatk on the EFFECTIVE DATE.
-* 
-* 2. LICENSE
-* 2.1 Grant. Subject to the terms of this Agreement, BROAD hereby grants to LICENSEE, solely for academic non-commercial research purposes, a non-exclusive, non-transferable license to: (a) download, execute and display the PROGRAM and (b) create bug fixes and modify the PROGRAM. LICENSEE hereby automatically grants to BROAD a non-exclusive, royalty-free, irrevocable license to any LICENSEE bug fixes or modifications to the PROGRAM with unlimited rights to sublicense and/or distribute.  LICENSEE agrees to provide any such modifications and bug fixes to BROAD promptly upon their creation.
-* The LICENSEE may apply the PROGRAM in a pipeline to data owned by users other than the LICENSEE and provide these users the results of the PROGRAM provided LICENSEE does so for academic non-commercial purposes only. For clarification purposes, academic sponsored research is not a commercial use under the terms of this Agreement.
-* 2.2 No Sublicensing or Additional Rights. LICENSEE shall not sublicense or distribute the PROGRAM, in whole or in part, without prior written permission from BROAD. LICENSEE shall ensure that all of its users agree to the terms of this Agreement. LICENSEE further agrees that it shall not put the PROGRAM on a network, server, or other similar technology that may be accessed by anyone other than the LICENSEE and its employees and users who have agreed to the terms of this agreement.
-* 2.3 License Limitations. Nothing in this Agreement shall be construed to confer any rights upon LICENSEE by implication, estoppel, or otherwise to any computer software, trademark, intellectual property, or patent rights of BROAD, or of any other entity, except as expressly granted herein. LICENSEE agrees that the PROGRAM, in whole or part, shall not be used for any commercial purpose, including without limitation, as the basis of a commercial software or hardware product or to provide services. LICENSEE further agrees that the PROGRAM shall not be copied or otherwise adapted in order to circumvent the need for obtaining a license for use of the PROGRAM.
-* 
-* 3. PHONE-HOME FEATURE
-* LICENSEE expressly acknowledges that the PROGRAM contains an embedded automatic reporting system ("PHONE-HOME") which is enabled by default upon download. Unless LICENSEE requests disablement of PHONE-HOME, LICENSEE agrees that BROAD may collect limited information transmitted by PHONE-HOME regarding LICENSEE and its use of the PROGRAM.  Such information shall include LICENSEE'S user identification, version number of the PROGRAM and tools being run, mode of analysis employed, and any error reports generated during run-time.  Collection of such information is used by BROAD solely to monitor usage rates, fulfill reporting requirements to BROAD funding agencies, drive improvements to the PROGRAM, and facilitate adjustments to PROGRAM-related documentation.
-* 
-* 4. OWNERSHIP OF INTELLECTUAL PROPERTY
-* LICENSEE acknowledges that title to the PROGRAM shall remain with BROAD. The PROGRAM is marked with the following BROAD copyright notice and notice of attribution to contributors. LICENSEE shall retain such notice on all copies. LICENSEE agrees to include appropriate attribution if any results obtained from use of the PROGRAM are included in any publication.
-* Copyright 2012-2016 Broad Institute, Inc.
-* Notice of attribution: The GATK3 program was made available through the generosity of Medical and Population Genetics program at the Broad Institute, Inc.
-* LICENSEE shall not use any trademark or trade name of BROAD, or any variation, adaptation, or abbreviation, of such marks or trade names, or any names of officers, faculty, students, employees, or agents of BROAD except as states above for attribution purposes.
-* 
-* 5. INDEMNIFICATION
-* LICENSEE shall indemnify, defend, and hold harmless BROAD, and their respective officers, faculty, students, employees, associated investigators and agents, and their respective successors, heirs and assigns, (Indemnitees), against any liability, damage, loss, or expense (including reasonable attorneys fees and expenses) incurred by or imposed upon any of the Indemnitees in connection with any claims, suits, actions, demands or judgments arising out of any theory of liability (including, without limitation, actions in the form of tort, warranty, or strict liability and regardless of whether such action has any factual basis) pursuant to any right or license granted under this Agreement.
-* 
-* 6. NO REPRESENTATIONS OR WARRANTIES
-* THE PROGRAM IS DELIVERED AS IS. BROAD MAKES NO REPRESENTATIONS OR WARRANTIES OF ANY KIND CONCERNING THE PROGRAM OR THE COPYRIGHT, EXPRESS OR IMPLIED, INCLUDING, WITHOUT LIMITATION, WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, NONINFRINGEMENT, OR THE ABSENCE OF LATENT OR OTHER DEFECTS, WHETHER OR NOT DISCOVERABLE. BROAD EXTENDS NO WARRANTIES OF ANY KIND AS TO PROGRAM CONFORMITY WITH WHATEVER USER MANUALS OR OTHER LITERATURE MAY BE ISSUED FROM TIME TO TIME.
-* IN NO EVENT SHALL BROAD OR ITS RESPECTIVE DIRECTORS, OFFICERS, EMPLOYEES, AFFILIATED INVESTIGATORS AND AFFILIATES BE LIABLE FOR INCIDENTAL OR CONSEQUENTIAL DAMAGES OF ANY KIND, INCLUDING, WITHOUT LIMITATION, ECONOMIC DAMAGES OR INJURY TO PROPERTY AND LOST PROFITS, REGARDLESS OF WHETHER BROAD SHALL BE ADVISED, SHALL HAVE OTHER REASON TO KNOW, OR IN FACT SHALL KNOW OF THE POSSIBILITY OF THE FOREGOING.
-* 
-* 7. ASSIGNMENT
-* This Agreement is personal to LICENSEE and any rights or obligations assigned by LICENSEE without the prior written consent of BROAD shall be null and void.
-* 
-* 8. MISCELLANEOUS
-* 8.1 Export Control. LICENSEE gives assurance that it will comply with all United States export control laws and regulations controlling the export of the PROGRAM, including, without limitation, all Export Administration Regulations of the United States Department of Commerce. Among other things, these laws and regulations prohibit, or require a license for, the export of certain types of software to specified countries.
-* 8.2 Termination. LICENSEE shall have the right to terminate this Agreement for any reason upon prior written notice to BROAD. If LICENSEE breaches any provision hereunder, and fails to cure such breach within thirty (30) days, BROAD may terminate this Agreement immediately. Upon termination, LICENSEE shall provide BROAD with written assurance that the original and all copies of the PROGRAM have been destroyed, except that, upon prior written authorization from BROAD, LICENSEE may retain a copy for archive purposes.
-* 8.3 Survival. The following provisions shall survive the expiration or termination of this Agreement: Articles 1, 3, 4, 5 and Sections 2.2, 2.3, 7.3, and 7.4.
-* 8.4 Notice. Any notices under this Agreement shall be in writing, shall specifically refer to this Agreement, and shall be sent by hand, recognized national overnight courier, confirmed facsimile transmission, confirmed electronic mail, or registered or certified mail, postage prepaid, return receipt requested. All notices under this Agreement shall be deemed effective upon receipt.
-* 8.5 Amendment and Waiver; Entire Agreement. This Agreement may be amended, supplemented, or otherwise modified only by means of a written instrument signed by all parties. Any waiver of any rights or failure to act in a specific instance shall relate only to such instance and shall not be construed as an agreement to waive any rights or fail to act in any other instance, whether or not similar. This Agreement constitutes the entire agreement among the parties with respect to its subject matter and supersedes prior agreements or understandings between the parties relating to its subject matter.
-* 8.6 Binding Effect; Headings. This Agreement shall be binding upon and inure to the benefit of the parties and their respective permitted successors and assigns. All headings are for convenience only and shall not affect the meaning of any provision of this Agreement.
-* 8.7 Governing Law. This Agreement shall be construed, governed, interpreted and applied in accordance with the internal laws of the Commonwealth of Massachusetts, U.S.A., without regard to conflict of laws principles.
-*/
+package org.broadinstitute.hellbender.tools.walkers.vqsr;
 
-package org.broadinstitute.gatk.tools.walkers.variantrecalibration;
-
-import org.broadinstitute.gatk.utils.exceptions.ReviewedGATKException;
-import org.broadinstitute.gatk.utils.exceptions.UserException;
-import org.broadinstitute.gatk.utils.text.XReadLines;
+import com.google.common.annotations.VisibleForTesting;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.broadinstitute.hellbender.exceptions.GATKException;
+import org.broadinstitute.hellbender.exceptions.UserException;
+import org.broadinstitute.hellbender.utils.text.XReadLines;
 
 import java.io.*;
 import java.util.*;
 
-/**
- * Created by IntelliJ IDEA.
- * User: rpoplin
- * Date: Mar 10, 2011
+/*
+ * Represents a truth sensitivity tranche in VQSR.
+ * (Package-private because it's not usable outside.)
  */
-
-public class Tranche {
+final class Tranche {
     private static final int CURRENT_VERSION = 5;
 
-    public double ts, minVQSLod, knownTiTv, novelTiTv;
-    public int numKnown,numNovel;
-    public String name;
-    public VariantRecalibratorArgumentCollection.Mode model;
+    private static final String DEFAULT_TRANCHE_NAME = "anonymous";
+    private static final String COMMENT_STRING = "#";
+    private static final String VALUE_SEPARATOR = ",";
+    private static final int EXPECTED_COLUMN_COUNT = 11;
 
-    int accessibleTruthSites = 0;
-    int callsAtTruthSites = 0;
+    static final Comparator<Tranche> TRUTH_SENSITIVITY_ORDER = (tranche1, tranche2) -> Double.compare(tranche1.targetTruthSensitivity, tranche2.targetTruthSensitivity);
 
-    public Tranche(double ts, double minVQSLod, int numKnown, double knownTiTv, int numNovel, double novelTiTv, int accessibleTruthSites, int callsAtTruthSites, VariantRecalibratorArgumentCollection.Mode model) {
-        this(ts, minVQSLod, numKnown, knownTiTv, numNovel, novelTiTv, accessibleTruthSites, callsAtTruthSites, model, "anonymous");
+    private static final Logger logger = LogManager.getLogger(Tranche.class);
+
+    //Note: visibility is set to package-local for testing
+    final double targetTruthSensitivity;
+    final double minVQSLod;  //minimum value of VQSLOD in this tranche
+    final double knownTiTv;  //titv value of known sites in this tranche
+    final double novelTiTv;  //titv value of novel sites in this tranche
+    final int numKnown;      //number of known sites in this tranche
+    final int numNovel;      //number of novel sites in this tranche
+    final VariantRecalibratorArgumentCollection.Mode model;
+    final String name;       //Name of the tranche
+
+    private final int accessibleTruthSites;
+    private final int callsAtTruthSites;
+
+    public Tranche(
+            final double targetTruthSensitivity,
+            final double minVQSLod,
+            final int numKnown,
+            final double knownTiTv,
+            final int numNovel,
+            final double novelTiTv,
+            final int accessibleTruthSites,
+            final int callsAtTruthSites,
+            final VariantRecalibratorArgumentCollection.Mode model) {
+        this(targetTruthSensitivity, minVQSLod, numKnown, knownTiTv, numNovel, novelTiTv, accessibleTruthSites, callsAtTruthSites, model, "anonymous");
     }
 
-    public Tranche(double ts, double minVQSLod, int numKnown, double knownTiTv, int numNovel, double novelTiTv, int accessibleTruthSites, int callsAtTruthSites, VariantRecalibratorArgumentCollection.Mode model, String name ) {
-        this.ts = ts;
+    public Tranche(
+            final double targetTruthSensitivity,
+            final double minVQSLod,
+            final int numKnown,
+            final double knownTiTv,
+            final int numNovel,
+            final double novelTiTv,
+            final int accessibleTruthSites,
+            final int callsAtTruthSites,
+            final VariantRecalibratorArgumentCollection.Mode model,
+            final String name) {
+        if ( targetTruthSensitivity < 0.0 || targetTruthSensitivity > 100.0) {
+            throw new GATKException("Target FDR is unreasonable " + targetTruthSensitivity);
+        }
+
+        if ( numKnown < 0 || numNovel < 0) {
+            throw new GATKException("Invalid tranche - no. variants is < 0 : known " + numKnown + " novel " + numNovel);
+        }
+
+        if ( name == null ) {
+            throw new GATKException("BUG -- name cannot be null");
+        }
+
+        this.targetTruthSensitivity = targetTruthSensitivity;
         this.minVQSLod = minVQSLod;
         this.novelTiTv = novelTiTv;
         this.numNovel = numNovel;
@@ -91,32 +86,12 @@ public class Tranche {
 
         this.accessibleTruthSites = accessibleTruthSites;
         this.callsAtTruthSites = callsAtTruthSites;
-
-        if ( ts < 0.0 || ts > 100.0)
-            throw new UserException("Target FDR is unreasonable " + ts);
-
-        if ( numKnown < 0 || numNovel < 0)
-            throw new ReviewedGATKException("Invalid tranche - no. variants is < 0 : known " + numKnown + " novel " + numNovel);
-
-        if ( name == null )
-            throw new ReviewedGATKException("BUG -- name cannot be null");
-    }
-
-    private double getTruthSensitivity() {
-        return accessibleTruthSites > 0 ? callsAtTruthSites / (1.0*accessibleTruthSites) : 0.0;
-    }
-
-    public static class TrancheTruthSensitivityComparator implements Comparator<Tranche>, Serializable {
-        @Override
-        public int compare(final Tranche tranche1, final Tranche tranche2) {
-            return Double.compare(tranche1.ts, tranche2.ts);
-        }
     }
 
     @Override
     public String toString() {
-        return String.format("Tranche ts=%.2f minVQSLod=%.4f known=(%d @ %.4f) novel=(%d @ %.4f) truthSites(%d accessible, %d called), name=%s]",
-                ts, minVQSLod, numKnown, knownTiTv, numNovel, novelTiTv, accessibleTruthSites, callsAtTruthSites, name);
+        return String.format("Tranche targetTruthSensitivity=%.2f minVQSLod=%.4f known=(%d @ %.4f) novel=(%d @ %.4f) truthSites(%d accessible, %d called), name=%s]",
+                targetTruthSensitivity, minVQSLod, numKnown, knownTiTv, numNovel, novelTiTv, accessibleTruthSites, callsAtTruthSites, name);
     }
 
     /**
@@ -139,82 +114,218 @@ public class Tranche {
         Tranche prev = null;
         for ( Tranche t : tranches ) {
             stream.printf("%.2f,%d,%d,%.4f,%.4f,%.4f,VQSRTranche%s%.2fto%.2f,%s,%d,%d,%.4f%n",
-                    t.ts, t.numKnown, t.numNovel, t.knownTiTv, t.novelTiTv, t.minVQSLod, t.model.toString(),
-                    (prev == null ? 0.0 : prev.ts), t.ts, t.model.toString(), t.accessibleTruthSites, t.callsAtTruthSites, t.getTruthSensitivity());
+                    t.targetTruthSensitivity, t.numKnown, t.numNovel, t.knownTiTv, t.novelTiTv, t.minVQSLod, t.model.toString(),
+                    (prev == null ? 0.0 : prev.targetTruthSensitivity), t.targetTruthSensitivity, t.model.toString(), t.accessibleTruthSites, t.callsAtTruthSites, t.getTruthSensitivity());
             prev = t;
         }
 
         return bytes.toString();
     }
 
-    private static double getDouble(Map<String,String> bindings, String key, boolean required) {
-        if ( bindings.containsKey(key) ) {
-            String val = bindings.get(key);
-            return Double.valueOf(val);
+    public static class TrancheTruthSensitivityComparator implements Comparator<Tranche> {
+        @Override
+        public int compare(final Tranche tranche1, final Tranche tranche2) {
+            return Double.compare(tranche1.targetTruthSensitivity, tranche2.targetTruthSensitivity);
         }
-        else if ( required ) {
-            throw new UserException.MalformedFile("Malformed tranches file.  Missing required key " + key);
-        }
-        else
-            return -1;
     }
 
-    private static int getInteger(Map<String,String> bindings, String key, boolean required) {
-        if ( bindings.containsKey(key) )
-            return Integer.valueOf(bindings.get(key));
-        else if ( required ) {
+    private double getTruthSensitivity() {
+        return accessibleTruthSites > 0 ? callsAtTruthSites / (1.0*accessibleTruthSites) : 0.0;
+    }
+
+    private static double getRequiredDouble(final Map<String,String> bindings, final String key ) {
+        if ( bindings.containsKey(key) ) {
+            try {
+                return Double.valueOf(bindings.get(key));
+            } catch (NumberFormatException e){
+                throw new UserException.MalformedFile("Malformed tranches file. Invalid value for key " + key);
+            }
+        } else  {
             throw new UserException.MalformedFile("Malformed tranches file.  Missing required key " + key);
         }
-        else
-            return -1;
+    }
+
+    private static double getOptionalDouble(final Map<String,String> bindings, String key, final double defaultValue ) {
+        try{
+            return Double.valueOf(bindings.getOrDefault(key, String.valueOf(defaultValue)));
+        } catch (NumberFormatException e){
+            throw new UserException.MalformedFile("Malformed tranches file. Invalid value for key " + key);
+        }
+    }
+
+    private static int getRequiredInteger(final Map<String,String> bindings, final String key) {
+        if ( bindings.containsKey(key) ) {
+            try{
+                return Integer.valueOf(bindings.get(key));
+            } catch (NumberFormatException e){
+                throw new UserException.MalformedFile("Malformed tranches file. Invalid value for key " + key);
+            }
+        } else {
+            throw new UserException.MalformedFile("Malformed tranches file.  Missing required key " + key);
+        }
+    }
+
+    private static int getOptionalInteger(final Map<String,String> bindings, final String key, final int defaultValue) {
+        try{
+            return Integer.valueOf(bindings.getOrDefault(key, String.valueOf(defaultValue)));
+        } catch (NumberFormatException e){
+            throw new UserException.MalformedFile("Malformed tranches file. Invalid value for key " + key);
+        }
     }
 
     /**
-     * Returns a list of tranches, sorted from most to least specific, read in from file f
-     *
-     * @param f
-     * @return
+     * Returns a list of tranches, sorted from most to least specific, read in from file f.
+     * @throws IOException if there are problems reading the file.
      */
-    public static List<Tranche> readTranches(File f) {
+    public static List<Tranche> readTranches(final File f) throws IOException{
         String[] header = null;
-        List<Tranche> tranches = new ArrayList<Tranche>();
+        List<Tranche> tranches = new ArrayList<>();
 
-        try {
-            for( final String line : new XReadLines(f) ) {
-                if ( line.startsWith("#") )
+        try (XReadLines xrl = new XReadLines(f) ) {
+            for (final String line : xrl) {
+                if (line.startsWith(COMMENT_STRING)) {
                     continue;
+                }
 
-                final String[] vals = line.split(",");
-                if( header == null ) {
+                final String[] vals = line.split(VALUE_SEPARATOR);
+                if (header == null) {  //reading the header
                     header = vals;
-                    if ( header.length == 5 || header.length == 8 || header.length == 10 )
-                        // old style tranches file, throw an error
-                        throw new UserException.MalformedFile(f, "Unfortunately your tranches file is from a previous version of this tool and cannot be used with the latest code.  Please rerun VariantRecalibrator");
-                    if ( header.length != 11 )
+                    if (header.length != EXPECTED_COLUMN_COUNT) {
                         throw new UserException.MalformedFile(f, "Expected 11 elements in header line " + line);
+                    }
                 } else {
-                    if ( header.length != vals.length )
+                    if (header.length != vals.length) {
                         throw new UserException.MalformedFile(f, "Line had too few/many fields.  Header = " + header.length + " vals " + vals.length + ". The line was: " + line);
+                    }
 
-                    Map<String,String> bindings = new HashMap<String, String>();
-                    for ( int i = 0; i < vals.length; i++ ) bindings.put(header[i], vals[i]);
-                    tranches.add(new Tranche(getDouble(bindings,"targetTruthSensitivity", true),
-                            getDouble(bindings,"minVQSLod", true),
-                            getInteger(bindings,"numKnown", false),
-                            getDouble(bindings,"knownTiTv", false),
-                            getInteger(bindings,"numNovel", true),
-                            getDouble(bindings,"novelTiTv", true),
-                            getInteger(bindings,"accessibleTruthSites", false),
-                            getInteger(bindings,"callsAtTruthSites", false),
-                            VariantRecalibratorArgumentCollection.parseString(bindings.get("model")),
+                    Map<String, String> bindings = new LinkedHashMap<>();
+                    for (int i = 0; i < vals.length; i++) {
+                        bindings.put(header[i], vals[i]);
+                    }
+                    tranches.add(new Tranche(
+                            getRequiredDouble(bindings, "targetTruthSensitivity"),
+                            getRequiredDouble(bindings, "minVQSLod"),
+                            getOptionalInteger(bindings, "numKnown", -1),
+                            getOptionalDouble(bindings, "knownTiTv", -1.0),
+                            getRequiredInteger(bindings, "numNovel"),
+                            getRequiredDouble(bindings, "novelTiTv"),
+                            getOptionalInteger(bindings, "accessibleTruthSites", -1),
+                            getOptionalInteger(bindings, "callsAtTruthSites", -1),
+                            VariantRecalibratorArgumentCollection.Mode.valueOf(bindings.get("model")),
                             bindings.get("filterName")));
                 }
             }
+        }
 
-            Collections.sort( tranches, new TrancheTruthSensitivityComparator() );
-            return tranches;
-        } catch( FileNotFoundException e ) {
-            throw new UserException.CouldNotReadInputFile(f, e);
+        tranches.sort(TRUTH_SENSITIVITY_ORDER);
+        return tranches;
+    }
+
+    @VisibleForTesting
+    static final class TruthSensitivityMetric {
+        private final String name;
+        private double[] runningSensitivity;
+        private final int nTrueSites;
+
+        public TruthSensitivityMetric(final int nTrueSites) {
+            this.name = "TruthSensitivity";
+            this.nTrueSites = nTrueSites;
+        }
+
+        public String getName(){
+            return name;
+        }
+
+        public double getThreshold(final double tranche) {
+            return 1.0 - tranche/100.0; // tranche of 1 => 99% sensitivity target
+        }
+
+        public void calculateRunningMetric(final List<VariantDatum> data) {
+            int nCalledAtTruth = 0;
+            runningSensitivity = new double[data.size()];
+
+            for ( int i = data.size() - 1; i >= 0; i-- ) {
+                VariantDatum datum = data.get(i);
+                nCalledAtTruth += datum.atTruthSite ? 1 : 0;
+                runningSensitivity[i] = 1 - nCalledAtTruth / (1.0 * nTrueSites);
+            }
+        }
+
+        public double getRunningMetric(final int i) {
+            return runningSensitivity[i];
         }
     }
+
+    public static List<Tranche> findTranches( final List<VariantDatum> data, final double[] trancheThresholds, final TruthSensitivityMetric metric, final VariantRecalibratorArgumentCollection.Mode model) {
+        logger.info(String.format("Finding %d tranches for %d variants", trancheThresholds.length, data.size()));
+
+        Collections.sort(data, VariantDatum.VariantDatumLODComparator);
+        metric.calculateRunningMetric(data);
+
+        List<Tranche> tranches = new ArrayList<>();
+        for ( double trancheThreshold : trancheThresholds ) {
+            Tranche t = findTranche(data, metric, trancheThreshold, model);
+
+            if ( t == null ) {
+                if (tranches.isEmpty()) {
+                    throw new UserException(String.format("Couldn't find any tranche containing variants with a %s > %.2f. Are you sure the truth files contain unfiltered variants which overlap the input data?", metric.getName(), metric.getThreshold(trancheThreshold)));
+                }
+                break;
+            }
+
+            tranches.add(t);
+        }
+
+        tranches.sort(Tranche.TRUTH_SENSITIVITY_ORDER);
+        return tranches;
+    }
+
+    private static Tranche findTranche( final List<VariantDatum> data, final TruthSensitivityMetric metric, final double trancheThreshold, final VariantRecalibratorArgumentCollection.Mode model ) {
+        logger.debug(String.format("  Tranche threshold %.2f => selection metric threshold %.3f", trancheThreshold, metric.getThreshold(trancheThreshold)));
+
+        double metricThreshold = metric.getThreshold(trancheThreshold);
+        int n = data.size();
+        for ( int i = 0; i < n; i++ ) {
+            if ( metric.getRunningMetric(i) >= metricThreshold ) {
+                // we've found the largest group of variants with sensitivity >= our target truth sensitivity
+                Tranche t = trancheOfVariants(data, i, trancheThreshold, model);
+                logger.debug(String.format("  Found tranche for %.3f: %.3f threshold starting with variant %d; running score is %.3f ",
+                        trancheThreshold, metricThreshold, i, metric.getRunningMetric(i)));
+                logger.debug(String.format("  Tranche is %s", t));
+                return t;
+            }
+        }
+
+        return null;
+    }
+
+    private static Tranche trancheOfVariants( final List<VariantDatum> data, int minI, double ts, final VariantRecalibratorArgumentCollection.Mode model ) {
+        int numKnown = 0, numNovel = 0, knownTi = 0, knownTv = 0, novelTi = 0, novelTv = 0;
+
+        double minLod = data.get(minI).lod;
+        for ( final VariantDatum datum : data ) {
+            if ( datum.lod >= minLod ) {
+                if ( datum.isKnown ) {
+                    numKnown++;
+                    if( datum.isSNP ) {
+                        if ( datum.isTransition ) { knownTi++; } else { knownTv++; }
+                    }
+                } else {
+                    numNovel++;
+                    if( datum.isSNP ) {
+                        if ( datum.isTransition ) { novelTi++; } else { novelTv++; }
+                    }
+                }
+            }
+        }
+
+        double knownTiTv = knownTi / Math.max(1.0 * knownTv, 1.0);
+        double novelTiTv = novelTi / Math.max(1.0 * novelTv, 1.0);
+
+        int accessibleTruthSites = VariantDatum.countCallsAtTruth(data, Double.NEGATIVE_INFINITY);
+        int nCallsAtTruth = VariantDatum.countCallsAtTruth(data, minLod);
+
+        return new Tranche(ts, minLod, numKnown, knownTiTv, numNovel, novelTiTv, accessibleTruthSites, nCallsAtTruth, model, DEFAULT_TRANCHE_NAME);
+    }
+
 }
