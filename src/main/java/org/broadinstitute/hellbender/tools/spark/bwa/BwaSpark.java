@@ -8,6 +8,8 @@ import org.broadinstitute.hellbender.cmdline.ArgumentCollection;
 import org.broadinstitute.hellbender.cmdline.CommandLineProgramProperties;
 import org.broadinstitute.hellbender.cmdline.StandardArgumentDefinitions;
 import org.broadinstitute.hellbender.cmdline.programgroups.SparkProgramGroup;
+import org.broadinstitute.hellbender.engine.filters.ReadFilter;
+import org.broadinstitute.hellbender.engine.filters.ReadFilterLibrary;
 import org.broadinstitute.hellbender.engine.spark.GATKSparkTool;
 import org.broadinstitute.hellbender.engine.spark.datasources.ReadsSparkSink;
 import org.broadinstitute.hellbender.exceptions.GATKException;
@@ -53,5 +55,11 @@ public final class BwaSpark extends GATKSparkTool {
         } catch (final IOException e) {
             throw new GATKException("Unable to write bam",e);
         }
+    }
+
+    @Override
+    public ReadFilter makeReadFilter() {
+        return ReadFilterLibrary.HAS_MATCHING_BASES_AND_QUALS
+                .and(ReadFilterLibrary.SEQ_IS_STORED);
     }
 }
