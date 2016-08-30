@@ -2,6 +2,7 @@ package org.broadinstitute.hellbender.tools.walkers.vqsr;
 
 import htsjdk.samtools.SAMSequenceDictionary;
 import htsjdk.variant.variantcontext.Allele;
+import org.broadinstitute.hellbender.utils.IntervalUtils;
 import org.broadinstitute.hellbender.utils.SimpleInterval;
 
 import java.util.Comparator;
@@ -46,35 +47,7 @@ final class VariantDatum {
      * @return a lambda closure comparator that uses the provided sequence dictionary
      */
     public static Comparator<VariantDatum> getComparator(final SAMSequenceDictionary seqDictionary) {
-        return (VariantDatum vd1, VariantDatum vd2) ->
-        {
-            if ( vd1 == vd2 ) {
-                return 0;
-            }
-            else {
-                int i1 = seqDictionary.getSequence(vd1.loc.getContig()).getSequenceIndex();
-                int i2 = seqDictionary.getSequence(vd2.loc.getContig()).getSequenceIndex();
-                if ( i1 < i2 ) {
-                    return -1;
-                } else if ( i1 > i2 ) {
-                    return 1;
-                }
-                // they're on the same contig, so check the start
-                else if ( vd1.loc.getStart() < vd2.loc.getStart() ) {
-                    return -1;
-                } else if ( vd1.loc.getStart() > vd2.loc.getStart() ) {
-                    return 1;
-                }
-                // same start, check end
-                else if ( vd1.loc.getEnd() < vd2.loc.getEnd() ) {
-                    return -1;
-                }  else if ( vd1.loc.getEnd() > vd2.loc.getEnd() ) {
-                    return 1;
-                }
-            }
-
-            return 0;
-        };
+        return (vd1, vd2) -> IntervalUtils.compareLocatables(vd1.loc, vd2.loc, seqDictionary);
     }
 
 }

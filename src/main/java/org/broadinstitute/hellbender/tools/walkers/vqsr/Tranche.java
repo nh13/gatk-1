@@ -101,25 +101,28 @@ final class Tranche {
      * @return
      */
     public static String tranchesString( final List<Tranche> tranches ) {
-        final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-        final PrintStream stream = new PrintStream(bytes);
+        try (final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+             final PrintStream stream = new PrintStream(bytes)) {
+            if( tranches.size() > 1 )
+                Collections.sort( tranches, new TrancheTruthSensitivityComparator() );
 
-        if( tranches.size() > 1 )
-            Collections.sort( tranches, new TrancheTruthSensitivityComparator() );
+            stream.println("# Variant quality score tranches file");
+            stream.println("# Version number " + CURRENT_VERSION);
+            stream.println("targetTruthSensitivity,numKnown,numNovel,knownTiTv,novelTiTv,minVQSLod,filterName,model,accessibleTruthSites,callsAtTruthSites,truthSensitivity");
 
-        stream.println("# Variant quality score tranches file");
-        stream.println("# Version number " + CURRENT_VERSION);
-        stream.println("targetTruthSensitivity,numKnown,numNovel,knownTiTv,novelTiTv,minVQSLod,filterName,model,accessibleTruthSites,callsAtTruthSites,truthSensitivity");
+            Tranche prev = null;
+            for ( Tranche t : tranches ) {
+                stream.printf("%.2f,%d,%d,%.4f,%.4f,%.4f,VQSRTranche%s%.2fto%.2f,%s,%d,%d,%.4f%n",
+                        t.targetTruthSensitivity, t.numKnown, t.numNovel, t.knownTiTv, t.novelTiTv, t.minVQSLod, t.model.toString(),
+                        (prev == null ? 0.0 : prev.targetTruthSensitivity), t.targetTruthSensitivity, t.model.toString(), t.accessibleTruthSites, t.callsAtTruthSites, t.getTruthSensitivity());
+                prev = t;
+            }
 
-        Tranche prev = null;
-        for ( Tranche t : tranches ) {
-            stream.printf("%.2f,%d,%d,%.4f,%.4f,%.4f,VQSRTranche%s%.2fto%.2f,%s,%d,%d,%.4f%n",
-                    t.targetTruthSensitivity, t.numKnown, t.numNovel, t.knownTiTv, t.novelTiTv, t.minVQSLod, t.model.toString(),
-                    (prev == null ? 0.0 : prev.targetTruthSensitivity), t.targetTruthSensitivity, t.model.toString(), t.accessibleTruthSites, t.callsAtTruthSites, t.getTruthSensitivity());
-            prev = t;
+            return bytes.toString();
         }
-
-        return bytes.toString();
+        catch (IOException e) {
+            throw new GATKException("IOException while converting tranche to a string");
+        }
     }
 
     public static class TrancheTruthSensitivityComparator implements Comparator<Tranche> {

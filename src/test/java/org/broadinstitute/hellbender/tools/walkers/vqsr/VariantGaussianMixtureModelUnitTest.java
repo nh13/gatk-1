@@ -12,7 +12,7 @@ import java.util.*;
 
 public final class VariantGaussianMixtureModelUnitTest extends BaseTest {
     private static int N_VARIANTS = 100;
-    VariantDatum[] variantData1 = new VariantDatum[N_VARIANTS];
+    private VariantDatum[] variantData1 = new VariantDatum[N_VARIANTS];
 
     private String testDir = CommandLineProgramTest.getTestDataDir() + "/walkers/VQSR/TrancheManagerUnitTest/";
 

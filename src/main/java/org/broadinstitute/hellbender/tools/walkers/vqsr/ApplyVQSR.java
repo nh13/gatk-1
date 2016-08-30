@@ -6,6 +6,7 @@ import htsjdk.variant.variantcontext.VariantContext;
 import htsjdk.variant.variantcontext.VariantContextBuilder;
 import htsjdk.variant.variantcontext.writer.VariantContextWriter;
 
+import org.broadinstitute.hellbender.cmdline.Advanced;
 import org.broadinstitute.hellbender.cmdline.Argument;
 import org.broadinstitute.hellbender.cmdline.CommandLineProgramProperties;
 import org.broadinstitute.hellbender.cmdline.StandardArgumentDefinitions;
@@ -17,7 +18,6 @@ import org.broadinstitute.hellbender.engine.ReferenceContext;
 import org.broadinstitute.hellbender.engine.VariantWalker;
 import org.broadinstitute.hellbender.exceptions.UserException;
 import org.broadinstitute.hellbender.tools.walkers.annotator.AnnotationUtils;
-import org.broadinstitute.hellbender.utils.commandline.AdvancedOption;
 import org.broadinstitute.hellbender.utils.variant.GATKVCFConstants;
 import org.broadinstitute.hellbender.utils.variant.GATKVariantContextUtils;
 
@@ -28,7 +28,12 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Apply a score cutoff to filter variants based on a recalibration table
+ * Apply a score cutoff to filter variants based on a recalibration table.
+ *
+ * <p>
+ * Note: this tool only accepts a single input variant file to be filtered (unlike GATK3, which accepted multiple
+ * input variant files).
+ * </p>
  *
  * <p>
  * This tool performs the second pass in a two-stage process called VQSR; the first pass is performed by the
@@ -134,7 +139,7 @@ public class ApplyVQSR extends VariantWalker {
 
     @Argument(fullName= StandardArgumentDefinitions.OUTPUT_LONG_NAME,
             shortName=StandardArgumentDefinitions.OUTPUT_SHORT_NAME,
-            doc="The output recal file used by ApplyRecalibration", optional=false)
+            doc="The output filtered and recalibrated VCF file in which each variant is annotated with its VQSLOD value", optional=false)
     private String output;
 
     /////////////////////////////
@@ -150,7 +155,7 @@ public class ApplyVQSR extends VariantWalker {
     @Argument(fullName="useAlleleSpecificAnnotations", shortName="AS", doc="If specified, the tool will attempt to apply a filter to each allele based on the input tranches and allele-specific .recal file.", optional=true)
     private boolean useASannotations = false;
 
-    @AdvancedOption
+    @Advanced
     @Argument(fullName="lodCutoff", shortName="lodCutoff", doc="The VQSLOD score below which to start filtering", optional=true)
     protected Double VQSLOD_CUTOFF = null;
 
@@ -181,7 +186,6 @@ public class ApplyVQSR extends VariantWalker {
     /////////////////////////////
     private VariantContextWriter vcfWriter;
     final private List<Tranche> tranches = new ArrayList<>();
-    final private Set<String> inputNames = new HashSet<>();
     final private Set<String> ignoreInputFilterSet = new TreeSet<>();
     final static private String listPrintSeparator = ",";
     final static private String trancheFilterString = "VQSRTranche";
@@ -192,7 +196,7 @@ public class ApplyVQSR extends VariantWalker {
 
     //---------------------------------------------------------------------------------------------------------------
     //
-    // initialize
+    // onTraversalStart
     //
     //---------------------------------------------------------------------------------------------------------------
 
@@ -222,8 +226,9 @@ public class ApplyVQSR extends VariantWalker {
 
         final Set<VCFHeaderLine> hInfo = new HashSet<>(inputHeaders);
         VariantRecalibrationUtils.addVQSRStandardHeaderLines(hInfo);
-        if (useASannotations)
+        if (useASannotations) {
             VariantRecalibrationUtils.addAlleleSpecificVQSRHeaderLines(hInfo);
+        }
 
         checkForPreviousApplyRecalRun(Collections.unmodifiableSet(inputHeaders));
 
@@ -313,49 +318,45 @@ public class ApplyVQSR extends VariantWalker {
 
     //---------------------------------------------------------------------------------------------------------------
     //
-    // map
+    // apply
     //
     //---------------------------------------------------------------------------------------------------------------
 
     @Override
     public void apply(final VariantContext vc, final ReadsContext readsContext, final ReferenceContext ref, final FeatureContext featureContext) {
 
-        final List<VariantContext> VCs =  featureContext.getValues(getDrivingVariantsFeatureInput(), featureContext .getInterval().getStart());
-        final List<VariantContext> recals =  featureContext.getValues(recal, featureContext.getInterval().getStart());
+        final List<VariantContext> recals =  featureContext.getValues(recal, vc.getStart());
+        final boolean evaluateThisVariant = useASannotations || VariantDataManager.checkVariationClass( vc, MODE );
 
-        for( final VariantContext variantContext : VCs ) {
+        //vc.isNotFiltered is true for PASS; vc.filtersHaveBeenApplied covers PASS and filters
+        final boolean variantIsNotFiltered = IGNORE_ALL_FILTERS || vc.isNotFiltered() ||
+                (!ignoreInputFilterSet.isEmpty() && ignoreInputFilterSet.containsAll(vc.getFilters()));
 
-            final boolean evaluateThisVariant = useASannotations || VariantDataManager.checkVariationClass( variantContext, MODE );
-            final boolean variantIsNotFiltered = IGNORE_ALL_FILTERS || variantContext.isNotFiltered() || (!ignoreInputFilterSet.isEmpty() && ignoreInputFilterSet.containsAll(variantContext.getFilters()));     //vc.isNotFiltered is true for PASS; vc.filtersHaveBeenApplied covers PASS and filters
-            if( evaluateThisVariant && variantIsNotFiltered) {
-
-
-                String filterString;
-                final VariantContextBuilder builder = new VariantContextBuilder(variantContext);
-                if (!useASannotations) {
-                    filterString = doSiteSpecificFiltering(variantContext, recals, builder);
-                }
-                else {  //allele-specific mode
-                    filterString = doAlleleSpecificFiltering(variantContext, recals, builder);
-                }
-
-                //for both non-AS and AS modes:
-
-                if( filterString.equals(VCFConstants.PASSES_FILTERS_v4) ) {
-                    builder.passFilters();
-                } else if(filterString.equals(VCFConstants.UNFILTERED)) {
-                    builder.unfiltered();
-                } else {
-                    builder.filters(filterString);
-                }
-
-                final VariantContext outputVC = builder.make();
-                if( !EXCLUDE_FILTERED || outputVC.isNotFiltered() ) {
-                    vcfWriter.add( outputVC );
-                }
-            } else { // valid VC but not compatible with this mode, so just emit the variant untouched
-                vcfWriter.add( variantContext );
+        if( evaluateThisVariant && variantIsNotFiltered) {
+            String filterString;
+            final VariantContextBuilder builder = new VariantContextBuilder(vc);
+            if (!useASannotations) {
+                filterString = doSiteSpecificFiltering(vc, recals, builder);
             }
+            else {  //allele-specific mode
+                filterString = doAlleleSpecificFiltering(vc, recals, builder);
+            }
+
+            //for both non-AS and AS modes:
+            if( filterString.equals(VCFConstants.PASSES_FILTERS_v4) ) {
+                builder.passFilters();
+            } else if(filterString.equals(VCFConstants.UNFILTERED)) {
+                builder.unfiltered();
+            } else {
+                builder.filters(filterString);
+            }
+
+            final VariantContext outputVC = builder.make();
+            if( !EXCLUDE_FILTERED || outputVC.isNotFiltered() ) {
+                vcfWriter.add( outputVC );
+            }
+        } else { // valid VC but not compatible with this mode, so just emit the variant untouched
+            vcfWriter.add( vc );
         }
     }
 

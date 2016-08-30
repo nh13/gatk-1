@@ -99,10 +99,10 @@ public final class VcfUtils {
 
     private static VCFContigHeaderLine makeContigHeaderLine(final SAMSequenceRecord contig, final String assembly) {
         final Map<String, String> map = new LinkedHashMap<>(3);
-        map.put("ID", contig.getSequenceName());
-        map.put("length", String.valueOf(contig.getSequenceLength()));
+        map.put(GATKVCFConstants.CONTIG_ID_KEY, contig.getSequenceName());
+        map.put(GATKVCFConstants.CONTIG_LENGTH_KEY, String.valueOf(contig.getSequenceLength()));
         if (assembly != null) {
-            map.put("assembly", assembly);
+            map.put(GATKVCFConstants.ASSEMBLY_NAME_KEY, assembly);
         }
         return new VCFContigHeaderLine(map, contig.getSequenceIndex());
     }

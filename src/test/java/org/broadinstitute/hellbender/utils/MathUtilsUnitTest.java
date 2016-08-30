@@ -1025,4 +1025,32 @@ public final class MathUtilsUnitTest extends BaseTest {
             Assert.assertEquals(MathUtils.allMatch(array, pred), Arrays.stream(array).allMatch(pred));
         }
     }
+
+    @DataProvider(name = "distanceSquaredData")
+    public Object[][] getDistanceSquaredData() {
+        return new Object[][] {
+                { new double[]{0.0}, new double[]{0.0}, 0.0},
+                { new double[]{2.0, 3.0, 4.0}, new double[]{2.0, 3.0, 4.0}, 0.0},
+                { new double[]{-2.0, -3.0, -4.0}, new double[]{-2.0, -3.0, -4.0}, 0.0},
+                { new double[]{2.0, 3.0, 4.0}, new double[]{3.0, 4.0, 5.0}, 3.0},
+        };
+    }
+
+    @Test(dataProvider = "distanceSquaredData")
+    public void testDistanceSquared(final double[] v1, final double[] v2, final double expected) {
+        Assert.assertEquals(MathUtils.distanceSquared(v1, v2), expected);
+    }
+
+    @DataProvider(name = "distanceSquaredNegativeData")
+    public Object[][] getDistanceSquaredNegativeData() {
+        return new Object[][] {
+                { new double[]{2.0, 3.0, 4.0}, new double[]{3.0, 4.0, }, Double.NaN},
+        };
+    }
+
+    @Test(dataProvider = "distanceSquaredNegativeData", expectedExceptions = ArrayIndexOutOfBoundsException.class)
+    public void testDistanceSquaredDifferentLengths(final double[] v1, final double[] v2, final double expected) {
+        MathUtils.distanceSquared(v1, v2);
+        Assert.fail("Vectors with unequal lengths should throw");
+    }
 }

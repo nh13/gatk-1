@@ -9,7 +9,7 @@ import org.broadinstitute.hellbender.utils.test.BaseTest;
 import java.util.Arrays;
 
 /**
- * Basic unit test for RecalData
+ * Basic unit test for ExpandingArrayList
  */
 public class ExpandingArrayListUnitTest extends BaseTest {
     ExpandingArrayList<Integer> empty, initCap10, hasOne, hasTen;

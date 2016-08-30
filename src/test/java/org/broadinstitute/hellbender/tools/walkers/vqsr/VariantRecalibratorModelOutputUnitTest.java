@@ -22,8 +22,6 @@ public class VariantRecalibratorModelOutputUnitTest {
         final double shrinkage = 1.0;
         final double dirichlet = 0.001;
         final double priorCounts = 20.0;
-        final int numGoodGaussians = 2;
-        final int numBadGaussians = 1;
         final double epsilon = 1e-6;
 
         Random rand = new Random(12878);
@@ -50,21 +48,21 @@ public class VariantRecalibratorModelOutputUnitTest {
         GaussianMixtureModel badModel = new GaussianMixtureModel(badGaussianList, shrinkage, dirichlet, priorCounts);
 
         if (printTables) {
-            System.out.println("Good model mean matrix:");
-            System.out.println(vectorToString(goodGaussian1.mu));
-            System.out.println(vectorToString(goodGaussian2.mu));
-            System.out.println("\n\n");
+            logger.info("Good model mean matrix:");
+            logger.info(vectorToString(goodGaussian1.mu));
+            logger.info(vectorToString(goodGaussian2.mu));
+            logger.info("\n\n");
 
-            System.out.println("Good model covariance matrices:");
+            logger.info("Good model covariance matrices:");
             goodGaussian1.sigma.print(10, 3);
             goodGaussian2.sigma.print(10, 3);
-            System.out.println("\n\n");
+            logger.info("\n\n");
 
-            System.out.println("Bad model mean matrix:\n");
-            System.out.println(vectorToString(badGaussian1.mu));
-            System.out.println("\n\n");
+            logger.info("Bad model mean matrix:\n");
+            logger.info(vectorToString(badGaussian1.mu));
+            logger.info("\n\n");
 
-            System.out.println("Bad model covariance matrix:");
+            logger.info("Bad model covariance matrix:");
             badGaussian1.sigma.print(10, 3);
         }
 

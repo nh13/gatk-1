@@ -9,6 +9,10 @@ import htsjdk.variant.variantcontext.Allele;
  */
 public final class GATKVCFConstants {
 
+    public static final String CONTIG_ID_KEY =                      "ID";
+    public static final String CONTIG_LENGTH_KEY =                  "length";
+    public static final String ASSEMBLY_NAME_KEY =                  "assembly";
+
     //INFO keys
     public static final String ALLELE_SPECIFIC_PREFIX =             "AS_";
     public static final String AS_FILTER_STATUS_KEY =               "AS_FilterStatus";

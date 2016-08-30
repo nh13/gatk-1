@@ -1,12 +1,12 @@
 package org.broadinstitute.hellbender.tools.walkers.vqsr;
 
 
+import org.broadinstitute.hellbender.cmdline.Advanced;
 import org.broadinstitute.hellbender.cmdline.Argument;
-import org.broadinstitute.hellbender.utils.commandline.AdvancedOption;
-import org.broadinstitute.hellbender.utils.commandline.HiddenOption;
+import org.broadinstitute.hellbender.cmdline.Hidden;
 
 /*
- * A bunch of annotations for VQSR.
+ * A bunch of arguments for VQSR.
  */
 final class VariantRecalibratorArgumentCollection {
 
@@ -35,6 +35,7 @@ final class VariantRecalibratorArgumentCollection {
      * This parameter determines the maximum number of Gaussians that should be used when building a positive model
      * using the variational Bayes algorithm.
      */
+    @Advanced
     @Argument(fullName = "maxGaussians", shortName = "mG", doc = "Max number of Gaussians for the positive model", optional = true)
     public int MAX_GAUSSIANS = 8;
 
@@ -44,6 +45,7 @@ final class VariantRecalibratorArgumentCollection {
      * arguments, meaning that if -mG is smaller than -mNG, -mG will be used for both. Note that this number should
      * be small (e.g. 4) to achieve the best results.
      */
+    @Advanced
     @Argument(fullName = "maxNegativeGaussians", shortName = "mNG", doc = "Max number of Gaussians for the negative model", optional = true)
     public int MAX_GAUSSIANS_FOR_NEGATIVE_MODEL = 2;
 
@@ -51,6 +53,7 @@ final class VariantRecalibratorArgumentCollection {
      * This parameter determines the maximum number of VBEM iterations to be performed in the variational Bayes algorithm.
      * The procedure will normally end when convergence is detected.
      */
+    @Advanced
     @Argument(fullName = "maxIterations", shortName = "mI", doc = "Maximum number of VBEM iterations", optional = true)
     public int MAX_ITERATIONS = 150;
 
@@ -58,6 +61,7 @@ final class VariantRecalibratorArgumentCollection {
      * This parameter determines the number of k-means iterations to perform in order to initialize the means of
      * the Gaussians in the Gaussian mixture model.
      */
+    @Advanced
     @Argument(fullName = "numKMeans", shortName = "nKM", doc = "Number of k-means iterations", optional = true)
     public int NUM_KMEANS_ITERATIONS = 100;
 
@@ -65,21 +69,26 @@ final class VariantRecalibratorArgumentCollection {
      * If a variant has annotations more than -std standard deviations away from mean, it won't be used for building
      * the Gaussian mixture model.
      */
+    @Advanced
     @Argument(fullName = "stdThreshold", shortName = "std", doc = "Annotation value divergence threshold (number of standard deviations from the means) ", optional = true)
     public double STD_THRESHOLD = 10.0;
 
+    @Advanced
     @Argument(fullName = "shrinkage", shortName = "shrinkage", doc = "The shrinkage parameter in the variational Bayes algorithm.", optional = true)
     public double SHRINKAGE = 1.0;
 
+    @Advanced
     @Argument(fullName = "dirichlet", shortName = "dirichlet", doc = "The dirichlet parameter in the variational Bayes algorithm.", optional = true)
     public double DIRICHLET_PARAMETER = 0.001;
 
+    @Advanced
     @Argument(fullName = "priorCounts", shortName = "priorCounts", doc = "The number of prior counts to use in the variational Bayes algorithm.", optional = true)
     public double PRIOR_COUNTS = 20.0;
 
     /**
      * The number of variants to use in building the Gaussian mixture model. Training sets larger than this will be randomly downsampled.
      */
+    @Advanced
     @Argument(fullName = "maxNumTrainingData", shortName = "maxNumTrainingData", doc = "Maximum number of training data", optional = true)
     protected int MAX_NUM_TRAINING_DATA = 2500000;
 
@@ -87,12 +96,14 @@ final class VariantRecalibratorArgumentCollection {
      * This parameter determines the minimum number of variants that will be selected from the list of worst scoring
      * variants to use for building the Gaussian mixture model of bad variants.
      */
+    @Advanced
     @Argument(fullName = "minNumBadVariants", shortName = "minNumBad", doc = "Minimum number of bad variants", optional = true)
     public int MIN_NUM_BAD_VARIANTS = 1000;
 
     /**
      * Variants scoring lower than this threshold will be used to build the Gaussian model of bad variants.
      */
+    @Advanced
     @Argument(fullName = "badLodCutoff", shortName = "badLodCutoff", doc = "LOD score cutoff for selecting bad variants", optional = true)
     public double BAD_LOD_CUTOFF = -5.0;
 
@@ -112,7 +123,7 @@ final class VariantRecalibratorArgumentCollection {
      *
      * If this option is not used, or if MQCap is set to 0, MQ will not be transformed.
      */
-    @AdvancedOption
+    @Advanced
     @Argument(fullName="MQCapForLogitJitterTransform", shortName = "MQCap", doc="Apply logit transform and jitter to MQ values", optional=true)
     public int MQ_CAP = 0;
 
@@ -121,13 +132,13 @@ final class VariantRecalibratorArgumentCollection {
      * Once this will have been tested, and the correct jitter amount chosen (perhaps as a function of the logit range [0,max]) they can be removed.
      */
 
-    @HiddenOption
-    @AdvancedOption
+    @Hidden
+    @Advanced
     @Argument(fullName = "no_MQ_logit", shortName = "NoMQLogit", doc="MQ is by default transformed to log[(MQ_cap + epsilon - MQ)/(MQ + epsilon)] to make it more Gaussian-like.  Use this flag to not do that.", optional = true)
     public boolean NO_MQ_LOGIT = false;
 
-    @HiddenOption
-    @AdvancedOption
+    @Hidden
+    @Advanced
     @Argument(fullName="MQ_jitter", shortName="MQJitt", doc="Amount of jitter (as a factor to a Normal(0,1) noise) to add to the MQ capped values", optional = true)
     public double MQ_JITTER = 0.05;
 
