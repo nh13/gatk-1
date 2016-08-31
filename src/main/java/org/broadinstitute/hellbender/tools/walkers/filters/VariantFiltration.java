@@ -209,9 +209,7 @@ public final class VariantFiltration extends VariantWalker {
 
         // need AC, AN and AF since output if set filtered genotypes to no-call
         if ( setFilteredGenotypesToNocall ) {
-            hInfo.add(VCFStandardHeaderLines.getInfoLine(VCFConstants.ALLELE_COUNT_KEY));
-            hInfo.add(VCFStandardHeaderLines.getInfoLine(VCFConstants.ALLELE_NUMBER_KEY));
-            hInfo.add(VCFStandardHeaderLines.getInfoLine(VCFConstants.ALLELE_FREQUENCY_KEY));
+            GATKVariantContextUtils.addChromosomeCounts(hInfo);
         }
 
         if ( clusterWindow > 0 ) {
@@ -298,7 +296,7 @@ public final class VariantFiltration extends VariantWalker {
 
         // make new Genotypes based on filters
         if ( !genotypeFilterExps.isEmpty() || setFilteredGenotypesToNocall ) {
-            builder.genotypes(makeGenotypes(vc, builder ));
+            GATKVariantContextUtils.setFilteredGenotypeToNocall(vc, builder, setFilteredGenotypesToNocall, this::getGenotypeFilters);
         }
 
         // make a new variant context based on filters
@@ -331,56 +329,27 @@ public final class VariantFiltration extends VariantWalker {
         writer.add(builder.make());
     }
 
-    private GenotypesContext makeGenotypes(final VariantContext vc, final VariantContextBuilder builder ) {
-        final GenotypesContext genotypes = GenotypesContext.create(vc.getGenotypes().size());
-
-        //
-        // recompute AC, AN and AF if filtered genotypes are set to no-call
-        //
-        // occurrences of alternate alleles over all genotypes
-        final Map<Allele, Integer> calledAltAlleles = new LinkedHashMap<>(vc.getAlternateAlleles().size());
-        for ( final Allele altAllele : vc.getAlternateAlleles() ) {
-            calledAltAlleles.put(altAllele, 0);
+    /**
+     * Get the genotype filters
+     *
+     * @param vc the variant context
+     * @param g the genotype
+     * @return list of genotype filter names
+     */
+    private List<String> getGenotypeFilters(final VariantContext vc, final Genotype g) {
+        final List<String> filters = new ArrayList<>();
+        if (g.isFiltered()) {
+            filters.add(g.getFilters());
         }
 
-        // Number of called alleles
-        int calledAlleles = 0;
-
-        boolean haveFilteredNoCallAlleles = false;
-
-        // for each genotype, check filters then create a new object
-        for ( final Genotype g : vc.getGenotypes() ) {
-            if ( g.isCalled() ) {
-                final List<String> filters = new ArrayList<>();
-                if ( g.isFiltered() ) {
-                    filters.add(g.getFilters());
-                }
-
-                // Add if expression filters the variant context
-                for ( final JexlVCMatchExp exp : genotypeFilterExps ) {
-                    if ( invertLogic(VariantContextUtils.match(vc, g, exp), invertGenotypeFilterExpression) ) {
-                        filters.add(exp.name);
-                    }
-                }
-
-                // if sample is filtered and --setFilteredGtToNocall, set genotype to non-call
-                if ( !filters.isEmpty() && setFilteredGenotypesToNocall ) {
-                    haveFilteredNoCallAlleles = true;
-                    genotypes.add(new GenotypeBuilder(g).filters(filters).alleles(diploidNoCallAlleles).make());
-                } else {
-                    genotypes.add(new GenotypeBuilder(g).filters(filters).make());
-                    calledAlleles += GATKVariantContextUtils.getCalledChromosomeCounts(calledAltAlleles, g);
-                }
-            } else {
-                genotypes.add(g);
+        // Add if expression filters the variant context
+        for (final JexlVCMatchExp exp : genotypeFilterExps) {
+            if (invertLogic(VariantContextUtils.match(vc, g, exp), invertGenotypeFilterExpression)) {
+                filters.add(exp.name);
             }
         }
 
-        if ( haveFilteredNoCallAlleles ) {
-            GATKVariantContextUtils.updateChromosomeCountsInfo(calledAltAlleles, calledAlleles, builder);
-        }
-
-        return genotypes;
+        return filters;
     }
 
     /**

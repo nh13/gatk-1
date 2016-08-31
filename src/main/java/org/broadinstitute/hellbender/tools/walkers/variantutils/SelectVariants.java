@@ -563,7 +563,10 @@ public final class SelectVariants extends VariantWalker {
         initalizeAlleleAnyploidIndicesCache(vc);
 
         final VariantContext sub = subsetRecord(vc, preserveAlleles, removeUnusedAlternates);
-        final VariantContext filteredGenotypeToNocall = setFilteredGenotypesToNocall ? setFilteredGenotypeToNocall(sub) : sub;
+        final VariantContextBuilder builder = new VariantContextBuilder(vc);
+        final VariantContext filteredGenotypeToNocall = setFilteredGenotypesToNocall ?
+                GATKVariantContextUtils.setFilteredGenotypeToNocall(sub, builder, setFilteredGenotypesToNocall, this::getGenotypeFilters):
+                sub;
 
         // Not excluding non-variants or subsetted polymorphic variants AND including filtered loci or subsetted variant is not filtered
         if ((!XLnonVariants || filteredGenotypeToNocall.isPolymorphicInSamples()) && (!XLfiltered || !filteredGenotypeToNocall.isFiltered())) {
@@ -590,6 +593,22 @@ public final class SelectVariants extends VariantWalker {
                 vcfWriter.add(filteredGenotypeToNocall);
             }
         }
+    }
+
+    /**
+     * Get the genotype filters
+     *
+     * @param vc the variant context
+     * @param g the genotype
+     * @return list of genotype filter names
+     */
+    private List<String> getGenotypeFilters(final VariantContext vc, final Genotype g) {
+        final List<String> filters = new ArrayList<>();
+        if (g.isFiltered()) {
+            filters.add(g.getFilters());
+        }
+
+        return filters;
     }
 
     /**
@@ -741,9 +760,7 @@ public final class SelectVariants extends VariantWalker {
 
         // need AC, AN and AF since output if set filtered genotypes to no-call
         if (setFilteredGenotypesToNocall) {
-            headerLines.add(VCFStandardHeaderLines.getInfoLine(VCFConstants.ALLELE_COUNT_KEY));
-            headerLines.add(VCFStandardHeaderLines.getInfoLine(VCFConstants.ALLELE_NUMBER_KEY));
-            headerLines.add(VCFStandardHeaderLines.getInfoLine(VCFConstants.ALLELE_FREQUENCY_KEY));
+            GATKVariantContextUtils.addChromosomeCounts(headerLines);
         }
 
         if (keepOriginalChrCounts) {
@@ -1103,47 +1120,6 @@ public final class SelectVariants extends VariantWalker {
         final VariantContext subset = builder.make();
 
         return preserveAlleles? subset : GATKVariantContextUtils.trimAlleles(subset,true,true);
-    }
-
-    /**
-     * If --setFilteredGtToNocall, set filtered genotypes to no-call
-     *
-     * @param vc the VariantContext record to set filtered genotypes to no-call
-     * @return the VariantContext with no-call genotypes if the sample was filtered
-     */
-    private VariantContext setFilteredGenotypeToNocall(final VariantContext vc) {
-
-        final VariantContextBuilder builder = new VariantContextBuilder(vc);
-        final GenotypesContext genotypes = GenotypesContext.create(vc.getGenotypes().size());
-
-        //
-        // recompute AC, AN and AF if filtered genotypes are set to no-call
-        //
-        // occurrences of alternate alleles over all genotypes
-        final Map<Allele, Integer> calledAltAlleles = new LinkedHashMap<>(vc.getAlternateAlleles().size());
-        for ( final Allele altAllele : vc.getAlternateAlleles() ) {
-            calledAltAlleles.put(altAllele, 0);
-        }
-        int calledAlleles = 0;
-        boolean haveFilteredNoCallAlleles = false;
-        for (final Genotype g : vc.getGenotypes()) {
-            if (g.isCalled() && g.isFiltered()) {
-                haveFilteredNoCallAlleles = true;
-                genotypes.add(new GenotypeBuilder(g).alleles(getNoCallAlleles(g.getPloidy())).make());
-            }
-            else {
-                // increment the number called alleles and called alternate alleles
-                calledAlleles += GATKVariantContextUtils.getCalledChromosomeCounts(calledAltAlleles, g);
-                genotypes.add(g);
-            }
-        }
-
-        // if filtered genotypes are set to no-call, output recomputed AC, AN, AF
-        if ( haveFilteredNoCallAlleles ) {
-            GATKVariantContextUtils.updateChromosomeCountsInfo(calledAltAlleles, calledAlleles, builder);
-        }
-
-        return builder.genotypes(genotypes).make();
     }
 
     /**

@@ -746,6 +746,7 @@ public class SelectVariantsIntegrationTest extends CommandLineProgramTest {
         spec.executeTest("testTetraDiploid--" + testFile, this);
     }
 
+    @Test
     public void testSetFilteredGtoNocallUpdateInfo() throws IOException {
         final String testFile = getToolTestDataDir() + "selectVariantsInfoField.vcf";
 

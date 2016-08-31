@@ -8,18 +8,20 @@ import htsjdk.variant.variantcontext.writer.Options;
 import htsjdk.variant.variantcontext.writer.VariantContextWriter;
 import htsjdk.variant.variantcontext.writer.VariantContextWriterBuilder;
 import htsjdk.variant.vcf.VCFConstants;
+import htsjdk.variant.vcf.VCFHeaderLine;
+import htsjdk.variant.vcf.VCFStandardHeaderLines;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.tuple.MutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.broadinstitute.hellbender.tools.walkers.genotyper.AlleleSubsettingUtils;
 import org.broadinstitute.hellbender.tools.walkers.genotyper.GenotypeAssignmentMethod;
 import org.broadinstitute.hellbender.utils.*;
 
 import java.io.File;
 import java.io.Serializable;
 import java.util.*;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 public final class GATKVariantContextUtils {
@@ -1351,14 +1353,25 @@ public final class GATKVariantContextUtils {
     }
 
     /**
+     * Add chromosome Counds (AC, AN and AF) to the VCF header lines
+     *
+     * @param headerLines the VCF header lines
+     */
+    public static void addChromosomeCounts(final Set<VCFHeaderLine> headerLines) {
+        headerLines.add(VCFStandardHeaderLines.getInfoLine(VCFConstants.ALLELE_COUNT_KEY));
+        headerLines.add(VCFStandardHeaderLines.getInfoLine(VCFConstants.ALLELE_NUMBER_KEY));
+        headerLines.add(VCFStandardHeaderLines.getInfoLine(VCFConstants.ALLELE_FREQUENCY_KEY));
+    }
+
+    /**
      * Get the number of called alleles for a genotype. Also, increment the number of called alternate alleles.
      *
      * @param calledAltAlleles number of called alternate alleles for all genotypes
      * @param genotype         genotype
      * @return incremented called alleles
-     * @throws IllegalArgumentException if calledAltAlleles or genotype are null
+     * @throws IllegalArgumentException if {@code calledAltAlleles} or {@code genotype} are {@code null}.
      */
-    public static int getCalledChromosomeCounts(final Map<Allele, Integer> calledAltAlleles, final Genotype genotype) {
+    protected static int getCalledChromosomeCounts(final Map<Allele, Integer> calledAltAlleles, final Genotype genotype) {
         Utils.nonNull(calledAltAlleles, "Called alternate alleles can not be null");
         Utils.nonNull(genotype, "Genotype can not be null");
 
@@ -1381,16 +1394,17 @@ public final class GATKVariantContextUtils {
      * @param calledAltAlleles  number of called alternate alleles for all genotypes
      * @param calledAlleles     number of called alleles for all genotypes
      * @param builder           builder for variant context
-     * @throws IllegalArgumentException if calledAltAlleles or builder are null
+     * @throws IllegalArgumentException if {@code calledAltAlleles} or {@code builder} are {@code null}.
      */
-    public static void updateChromosomeCountsInfo(final Map<Allele, Integer> calledAltAlleles, final int calledAlleles,
+    protected static void updateChromosomeCountsInfo(final Map<Allele, Integer> calledAltAlleles, final int calledAlleles,
                                                   final VariantContextBuilder builder) {
+        if ( calledAlleles < 0 ) throw new IllegalArgumentException("calledAlleles has a negative value");
         Utils.nonNull(calledAltAlleles, "Called alternate alleles can not be null");
         Utils.nonNull(builder, "Variant context builder can not be null");
 
         builder.attribute(VCFConstants.ALLELE_COUNT_KEY, calledAltAlleles.values().toArray()).
                 attribute(VCFConstants.ALLELE_NUMBER_KEY, calledAlleles);
-        // Add AF is there are called alleles
+        // Add AF if there are called alleles
         if ( calledAlleles != 0 ) {
             final Set<Double> alleleFrequency = new LinkedHashSet<>(calledAltAlleles.size());
             for ( final Integer value : calledAltAlleles.values() ) {
@@ -1398,5 +1412,52 @@ public final class GATKVariantContextUtils {
             }
             builder.attribute(VCFConstants.ALLELE_FREQUENCY_KEY, alleleFrequency.toArray());
         }
+    }
+
+    /**
+     * Set filtered genotypes to no-call and update AC, AN and AF
+     *
+     * @param vc the VariantContext record to set filtered genotypes to no-call
+     * @param builder builder for variant context
+     * @param setFilteredGenotypesToNocall flag to set filtered genotype to NO CALL
+     * @return the VariantContext with no-call genotypes if the genotype was filtered
+     */
+    public static VariantContext setFilteredGenotypeToNocall(final VariantContext vc, final VariantContextBuilder builder,
+                                                             final boolean setFilteredGenotypesToNocall, BiFunction<VariantContext, Genotype, List<String>> filters) {
+
+        final GenotypesContext genotypes = GenotypesContext.create(vc.getGenotypes().size());
+
+        //
+        // recompute AC, AN and AF if filtered genotypes are set to no-call
+        //
+        // occurrences of alternate alleles over all genotypes
+        final Map<Allele, Integer> calledAltAlleles = new LinkedHashMap<>(vc.getAlternateAlleles().size());
+        for ( final Allele altAllele : vc.getAlternateAlleles() ) {
+            calledAltAlleles.put(altAllele, 0);
+        }
+        int calledAlleles = 0;
+        boolean haveFilteredNoCallAlleles = false;
+        for (final Genotype g : vc.getGenotypes()) {
+            if (g.isCalled()) {
+                List<String> filterNames = filters.apply(vc,g);
+                if (!filterNames.isEmpty() && setFilteredGenotypesToNocall) {
+                    haveFilteredNoCallAlleles = true;
+                    genotypes.add(new GenotypeBuilder(g).filters(filterNames).alleles(GATKVariantContextUtils.noCallAlleles((g.getPloidy()))).make());
+                } else {
+                    genotypes.add(new GenotypeBuilder(g).filters(filterNames).make());
+                    // increment the number called alleles and called alternate alleles
+                    calledAlleles += GATKVariantContextUtils.getCalledChromosomeCounts(calledAltAlleles, g);
+                }
+            } else {
+                genotypes.add(g);
+            }
+        }
+
+        // if filtered genotypes are set to no-call, output recomputed AC, AN, AF
+        if ( haveFilteredNoCallAlleles ) {
+            GATKVariantContextUtils.updateChromosomeCountsInfo(calledAltAlleles, calledAlleles, builder);
+        }
+
+        return builder.genotypes(genotypes).make();
     }
 }
