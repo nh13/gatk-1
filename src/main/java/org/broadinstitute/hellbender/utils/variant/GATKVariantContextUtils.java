@@ -1411,6 +1411,8 @@ public final class GATKVariantContextUtils {
                 alleleFrequency.add(value.doubleValue()/calledAlleles);
             }
             builder.attribute(VCFConstants.ALLELE_FREQUENCY_KEY, alleleFrequency.toArray());
+        } else {
+            builder.rmAttribute(VCFConstants.ALLELE_FREQUENCY_KEY);
         }
     }
 
@@ -1420,7 +1422,8 @@ public final class GATKVariantContextUtils {
      * @param vc the VariantContext record to set filtered genotypes to no-call
      * @param builder builder for variant context
      * @param setFilteredGenotypesToNocall flag to set filtered genotype to NO CALL
-     * @return the VariantContext with no-call genotypes if the genotype was filtered
+     * @param filters the filters for each genotype
+     * @return the VariantContext with no-call genotypes and updated AC, AN and AF if the genotype was filtered
      */
     public static VariantContext setFilteredGenotypeToNocall(final VariantContext vc, final VariantContextBuilder builder,
                                                              final boolean setFilteredGenotypesToNocall, BiFunction<VariantContext, Genotype, List<String>> filters) {

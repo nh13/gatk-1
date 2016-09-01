@@ -6,6 +6,7 @@ import htsjdk.variant.variantcontext.GenotypeLikelihoods;
 import htsjdk.variant.variantcontext.writer.Options;
 import htsjdk.variant.variantcontext.writer.VariantContextWriter;
 import htsjdk.variant.vcf.VCFConstants;
+import org.apache.commons.collections.iterators.ArrayListIterator;
 import org.apache.commons.lang3.tuple.Pair;
 import org.broadinstitute.hellbender.tools.walkers.genotyper.AlleleSubsettingUtils;
 import org.broadinstitute.hellbender.tools.walkers.genotyper.GenotypeAssignmentMethod;
@@ -1829,5 +1830,42 @@ public final class GATKVariantContextUtilsUnitTest extends BaseTest {
         final int calledAlleles = 0;
         final Map<Allele, Integer> calledAltAlleles = new LinkedHashMap<>();
         GATKVariantContextUtils.updateChromosomeCountsInfo(calledAltAlleles, calledAlleles, null);
+    }
+
+    @DataProvider(name = "setFilteredGenotypeToNocallTest")
+    public Object[][] makeSetFilteredGenotypeToNocallTest() {
+        List<Object[]> tests = new ArrayList<>();
+
+        tests.add(new Object[]{new ArrayList<>(Arrays.asList(Aref, C)), true, Arrays.asList(0), 0, Arrays.asList(0.5)});
+        tests.add(new Object[]{new ArrayList<>(Arrays.asList(Aref, C)), false, Arrays.asList(1), 2, Arrays.asList(0.5)});
+        tests.add(new Object[]{new ArrayList<>(Arrays.asList(Allele.NO_CALL, Allele.NO_CALL)), true, Arrays.asList(1), 2, Arrays.asList(0.5)});
+
+        return tests.toArray(new Object[][]{});
+    }
+
+    private List<String> getGenotypeFilters(final VariantContext vc, final Genotype g) {
+        final List<String> filters = new ArrayList<>();
+        if (g.isFiltered()) {
+            filters.add(g.getFilters());
+        }
+
+        return filters;
+    }
+
+    @Test(dataProvider="setFilteredGenotypeToNocallTest")
+    public void testSetFilteredGenotypeToNocall(final List<Allele> genotypeAlleles, final boolean setFilteredGenotypesToNocall,
+                                                final List<Integer> calledAltAlleles, final int calledAlleles, final List<Double> alleleFrequency) {
+        final List<Allele> alleles = new ArrayList<>(Arrays.asList(Aref, C));
+        final Genotype genotype = new GenotypeBuilder("NA12878").alleles(genotypeAlleles).filter("FILTER").make();
+        final VariantContextBuilder builder = new VariantContextBuilder("test", "chr1", 1, Aref.length(), alleles).genotypes(genotype).
+                attribute(VCFConstants.ALLELE_COUNT_KEY, new int[]{1} ).
+                attribute(VCFConstants.ALLELE_NUMBER_KEY, 2).
+                attribute(VCFConstants.ALLELE_FREQUENCY_KEY, new double[]{0.5});
+        VariantContext vc = GATKVariantContextUtils.setFilteredGenotypeToNocall(builder.make(), builder, setFilteredGenotypesToNocall, this::getGenotypeFilters);
+        Assert.assertEquals(vc.getAttribute(VCFConstants.ALLELE_COUNT_KEY), calledAltAlleles.toArray());
+        Assert.assertEquals(vc.getAttribute(VCFConstants.ALLELE_NUMBER_KEY), calledAlleles);
+        if ( calledAlleles != 0 ) {
+            Assert.assertEquals(vc.getAttribute(VCFConstants.ALLELE_FREQUENCY_KEY), alleleFrequency.toArray());
+        }
     }
 }
