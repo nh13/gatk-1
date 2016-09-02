@@ -296,7 +296,7 @@ public final class VariantFiltration extends VariantWalker {
 
         // make new Genotypes based on filters
         if ( !genotypeFilterExps.isEmpty() || setFilteredGenotypesToNocall ) {
-            GATKVariantContextUtils.setFilteredGenotypeToNocall(vc, builder, setFilteredGenotypesToNocall, this::getGenotypeFilters);
+            GATKVariantContextUtils.setFilteredGenotypeToNocall(builder, vc, setFilteredGenotypesToNocall, this::getGenotypeFilters);
         }
 
         // make a new variant context based on filters

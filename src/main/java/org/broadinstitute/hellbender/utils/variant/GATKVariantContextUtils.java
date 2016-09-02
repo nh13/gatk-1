@@ -1391,7 +1391,7 @@ public final class GATKVariantContextUtils {
     /**
      * Update the variant context chromosome counts info fields (AC, AN, AF)
      *
-     * @param calledAltAlleles  number of called alternate alleles for all genotypes
+     * @param calledAltAlleles  number of called alternate alleles
      * @param calledAlleles     number of called alleles for all genotypes
      * @param builder           builder for variant context
      * @throws IllegalArgumentException if {@code calledAltAlleles} or {@code builder} are {@code null}.
@@ -1417,16 +1417,18 @@ public final class GATKVariantContextUtils {
     }
 
     /**
-     * Set filtered genotypes to no-call and update AC, AN and AF
+     * Set the builder's filtered genotypes to no-call and update AC, AN and AF
      *
-     * @param vc the VariantContext record to set filtered genotypes to no-call
      * @param builder builder for variant context
+     * @param vc the VariantContext record to set filtered genotypes to no-call
      * @param setFilteredGenotypesToNocall flag to set filtered genotype to NO CALL
      * @param filters the filters for each genotype
-     * @return the VariantContext with no-call genotypes and updated AC, AN and AF if the genotype was filtered
      */
-    public static VariantContext setFilteredGenotypeToNocall(final VariantContext vc, final VariantContextBuilder builder,
-                                                             final boolean setFilteredGenotypesToNocall, BiFunction<VariantContext, Genotype, List<String>> filters) {
+    public static void setFilteredGenotypeToNocall(final VariantContextBuilder builder, final VariantContext vc,
+                                                   final boolean setFilteredGenotypesToNocall, BiFunction<VariantContext, Genotype, List<String>> filters) {
+        Utils.nonNull(vc);
+        Utils.nonNull(builder);
+        Utils.nonNull(filters);
 
         final GenotypesContext genotypes = GenotypesContext.create(vc.getGenotypes().size());
 
@@ -1461,6 +1463,7 @@ public final class GATKVariantContextUtils {
             GATKVariantContextUtils.updateChromosomeCountsInfo(calledAltAlleles, calledAlleles, builder);
         }
 
-        return builder.genotypes(genotypes).make();
+        // update genotypes
+        builder.genotypes(genotypes);
     }
 }
