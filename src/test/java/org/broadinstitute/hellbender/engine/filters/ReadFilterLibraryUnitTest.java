@@ -613,7 +613,7 @@ public final class ReadFilterLibraryUnitTest {
         Assert.assertFalse(f.test(read), read.toString());//fail - match
     }
 
-    @DataProvider(name = "MateOnSameContigOrNoMappedMateTestData")
+    @DataProvider(name = "MateOnSameContigOrMateNotMappedTestData")
     public Object[][] mateOnSameContigOrNoMappedMateTestData() {
         final SAMFileHeader header = createHeaderWithReadGroups();
 
@@ -659,9 +659,103 @@ public final class ReadFilterLibraryUnitTest {
         };
     }
 
-    @Test(dataProvider = "MateOnSameContigOrNoMappedMateTestData")
-    public void testMateOnSameContigOrNoMappedMate( final GATKRead read, final boolean expectedFilterResult ) {
-        final boolean actualFilterResult = MATE_ON_SAME_CONTIG_OR_NO_MAPPED_MATE.test(read);
+    @Test(dataProvider = "MateOnSameContigOrMateNotMappedTestData")
+    public void testMateOnSameContigOrMateNotMapped( final GATKRead read, final boolean expectedFilterResult ) {
+        final boolean actualFilterResult = MATE_ON_SAME_CONTIG_OR_MATE_NOT_MAPPED.test(read);
         Assert.assertEquals(actualFilterResult, expectedFilterResult);
     }
+
+    @Test
+    public void testFirstOfPair() {
+        final SAMFileHeader header = createHeaderWithReadGroups();
+        final GATKRead read = simpleGoodRead(header);
+
+        read.setIsPaired(false);
+        Assert.assertFalse(FIRST_OF_PAIR.test(read), "FIRST_OF_PAIR " + read.toString());
+        read.setIsPaired(true);
+        Assert.assertFalse(FIRST_OF_PAIR.test(read), "FIRST_OF_PAIR " + read.toString());
+        read.setIsFirstOfPair();
+        Assert.assertTrue(FIRST_OF_PAIR.test(read), "FIRST_OF_PAIR " + read.toString());
+    }
+
+    @Test
+    public void testSecondOfPair() {
+        final SAMFileHeader header = createHeaderWithReadGroups();
+        final GATKRead read = simpleGoodRead(header);
+
+        Assert.assertFalse(SECOND_OF_PAIR.test(read), "SECOND_OF_PAIR " + read.toString());
+        read.setIsPaired(true);
+        read.setIsSecondOfPair();
+        Assert.assertTrue(SECOND_OF_PAIR.test(read), "SECOND_OF_PAIR " + read.toString());
+    }
+
+    @Test
+    public void testMateDifferentStrandReadFilter() {
+        final SAMFileHeader header = createHeaderWithReadGroups();
+        final GATKRead pairedRead = simpleGoodRead(header);
+        pairedRead.setIsPaired(true);
+
+        Assert.assertFalse(MATE_DIFFERENT_STRAND.test(pairedRead), "MATE_DIFFERENT_STRAND " + pairedRead.toString());
+        pairedRead.setIsReverseStrand(false);
+        Assert.assertFalse(MATE_DIFFERENT_STRAND.test(pairedRead), "MATE_DIFFERENT_STRAND " + pairedRead.toString());
+        pairedRead.setMatePosition("0", 1);
+        Assert.assertFalse(MATE_DIFFERENT_STRAND.test(pairedRead), "MATE_DIFFERENT_STRAND " + pairedRead.toString());
+
+        pairedRead.setMateIsReverseStrand(true);
+        Assert.assertTrue(MATE_DIFFERENT_STRAND.test(pairedRead), "MATE_DIFFERENT_STRAND " + pairedRead.toString());
+    }
+
+    @Test
+    public void testNonZeroFragmentLengthReadFilter() {
+        final SAMFileHeader header = createHeaderWithReadGroups();
+        final GATKRead read = simpleGoodRead(header);
+
+        read.setFragmentLength(0);
+        Assert.assertFalse(NONZERO_FRAGMENT_LENGTH_READ_FILTER.test(read), "NONZERO_FRAGMENT_LENGTH_READ_FILTER " + read.toString());
+        read.setFragmentLength(9);
+        Assert.assertTrue(NONZERO_FRAGMENT_LENGTH_READ_FILTER.test(read), "NONZERO_FRAGMENT_LENGTH_READ_FILTER " + read.toString());
+    }
+
+    @Test
+    public void testNotSecondaryAlignmentReadFilter() {
+        final SAMFileHeader header = createHeaderWithReadGroups();
+        final GATKRead read = simpleGoodRead(header);
+
+        read.setIsSecondaryAlignment(false);
+        Assert.assertTrue(NOT_SECONDARY_ALIGNMENT.test(read), "NOT_SECONDARY_ALIGNMENT " + read.toString());
+        read.setIsSecondaryAlignment(true);
+        Assert.assertFalse(NOT_SECONDARY_ALIGNMENT.test(read), "NOT_SECONDARY_ALIGNMENT " + read.toString());
+    }
+
+    @Test
+    public void testNotSupplementaryAlignmentReadFilter() {
+        final SAMFileHeader header = createHeaderWithReadGroups();
+        final GATKRead read = simpleGoodRead(header);
+
+        read.setIsSupplementaryAlignment(false);
+        Assert.assertTrue(NOT_SUPPLEMENTARY_ALIGNMENT.test(read), "NOT_SUPPLEMENTARY_ALIGNMENT " + read.toString());
+        read.setIsSupplementaryAlignment(true);
+        Assert.assertFalse(NOT_SUPPLEMENTARY_ALIGNMENT.test(read), "NOT_SUPPLEMENTARY_ALIGNMENT " + read.toString());
+    }
+
+    @Test
+    public void testPairedReadFilter() {
+        final SAMFileHeader header = createHeaderWithReadGroups();
+        final GATKRead read = simpleGoodRead(header);
+        read.setIsPaired(false);
+        Assert.assertFalse(PAIRED.test(read), "PAIRED " + read.toString());
+        read.setIsPaired(true);
+        Assert.assertTrue(PAIRED.test(read), "PAIRED " + read.toString());
+    }
+
+    @Test
+    public void testProperlyPairedReadFilter() {
+        final SAMFileHeader header = createHeaderWithReadGroups();
+        final GATKRead read = simpleGoodRead(header);
+        Assert.assertFalse(PROPERLY_PAIRED.test(read), "PROPERLY_PAIRED " + read.toString());
+        read.setIsPaired(true);
+        read.setIsProperlyPaired(true);
+        Assert.assertTrue(PROPERLY_PAIRED.test(read), "PROPERLY_PAIRED " + read.toString());
+    }
+
 }

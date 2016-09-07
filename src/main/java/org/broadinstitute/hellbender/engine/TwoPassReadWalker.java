@@ -58,11 +58,6 @@ public abstract class TwoPassReadWalker extends ReadWalker {
                 });
     }
 
-    @Override
-    public List<ReadFilter> getDefaultReadFilters() {
-        return Collections.singletonList(new ReadFilterLibrary.AllowAllReadsReadFilter());
-    }
-
     @FunctionalInterface
     private interface GATKApply{
         void consume(GATKRead read, ReferenceContext reference, FeatureContext features);

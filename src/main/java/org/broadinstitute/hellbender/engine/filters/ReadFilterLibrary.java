@@ -20,17 +20,28 @@ public final class ReadFilterLibrary {
         @Override public boolean test(final GATKRead read){return true;}}
 
     //Note: do not call getCigar to avoid creation of new Cigar objects
+    //TODO: is "CigarIsSupported" well understood to mean "no Ns", or should this be renamed ?
     public static class CigarIsSupportedReadFilter extends ReadFilter {
         private static final long serialVersionUID = 1L;
         @Override public boolean test(final GATKRead read){
             return ! CigarUtils.containsNOperator(read.getCigarElements());}}
+
+    public static class FirstOfPairReadFilter extends ReadFilter {
+        private static final long serialVersionUID = 1L;
+        @Override public boolean test (final GATKRead read) {
+            return read.isFirstOfPair();}}
 
     public static class GoodCigarReadFilter extends ReadFilter {
         private static final long serialVersionUID = 1L;
         @Override public boolean test (final GATKRead read) {
             return CigarUtils.isGood(read.getCigar());}}
 
-    public static class HasMatchingBasesAndQualsReadFilter extends ReadFilter {
+    public static class NonZeroFragmentLengthReadFilter extends ReadFilter {
+        private static final long serialVersionUID = 1L;
+        @Override public boolean test(final GATKRead read){
+            return read.getFragmentLength() != 0;}}
+
+    public static class MatchingBasesAndQualsReadFilter extends ReadFilter {
         private static final long serialVersionUID = 1L;
         @Override public boolean test(final GATKRead read){
             return read.getLength() == read.getBaseQualityCount();}}
@@ -42,23 +53,23 @@ public final class ReadFilterLibrary {
 
     public static class MappedReadFilter extends ReadFilter {
         private static final long serialVersionUID = 1L;
-        @Override public boolean test(final GATKRead read){
+        @Override public boolean test(final GATKRead read) {
             return !read.isUnmapped();}}
 
     public static class MappingQualityAvailableReadFilter extends ReadFilter {
         private static final long serialVersionUID = 1L;
-        @Override public boolean test(final GATKRead read){
+        @Override public boolean test(final GATKRead read) {
             return read.getMappingQuality() != QualityUtils.MAPPING_QUALITY_UNAVAILABLE;}}
 
     public static class MappingQualityNotZeroReadFilter extends ReadFilter {
         private static final long serialVersionUID = 1L;
-        @Override public boolean test(final GATKRead read){
+        @Override public boolean test(final GATKRead read) {
             return read.getMappingQuality() != 0;}}
 
     /**
      * Reads that either have a mate that maps to the same contig, or don't have a mapped mate.
      */
-    public static class MateOnSameContigOrNoMappedMateReadFilter extends ReadFilter {
+    public static class MateOnSameContigOrMateNotMappedReadFilter extends ReadFilter {
         private static final long serialVersionUID = 1L;
         @Override public boolean test(final GATKRead read){
             return ! read.isPaired() ||
@@ -89,14 +100,36 @@ public final class ReadFilterLibrary {
         @Override public boolean test(final GATKRead read){
             return ! read.isDuplicate();}}
 
+    public static class NotSecondaryAlignmentReadFilter extends ReadFilter {
+        private static final long serialVersionUID = 1L;
+        @Override public boolean test(final GATKRead read) {
+            return !read.isSecondaryAlignment();}}
+
+    public static class NotSupplementaryAlignmentReadFilter extends ReadFilter {
+        private static final long serialVersionUID = 1L;
+        @Override public boolean test(final GATKRead read) {
+            return !read.isSupplementaryAlignment();}}
+
+    public static class PairedReadFilter extends ReadFilter {
+        private static final long serialVersionUID = 1L;
+        @Override public boolean test(final GATKRead read) {
+            return read.isPaired();}}
+
     public static class PassesVendorQualityCheckReadFilter extends ReadFilter {
         private static final long serialVersionUID = 1L;
         @Override public boolean test(final GATKRead read){
             return ! read.failsVendorQualityCheck();}}
 
+    public static class ProperlyPairedReadFilter extends ReadFilter {
+        private static final long serialVersionUID = 1L;
+        @Override public boolean test(final GATKRead read) {
+            return read.isProperlyPaired();}}
+
     public static class PrimaryAlignmentReadFilter extends ReadFilter {
         private static final long serialVersionUID = 1L;
-        @Override public boolean test(final GATKRead read){
+        @Override public boolean test(final GATKRead read) {
+            //TODO: should this also be rejecting isSupplementaryAlignment() ?
+            // or isDuplicate?
             return ! read.isSecondaryAlignment();}}
 
     //Note: do not call getCigar to avoid creation of new Cigar objects
@@ -106,6 +139,12 @@ public final class ReadFilterLibrary {
             return read.isUnmapped() ||
                     read.getLength() == Cigar.getReadLength(read.getCigarElements());}}
 
+    public static class SecondOfPairReadFilter extends ReadFilter {
+        private static final long serialVersionUID = 1L;
+        @Override public boolean test (final GATKRead read) {
+            return read.isSecondOfPair();}}
+
+    //TODO: is there a better name for this ?
     public static class SeqIsStoredReadFilter extends ReadFilter {
         private static final long serialVersionUID = 1L;
         @Override public boolean test(final GATKRead read){
@@ -127,19 +166,26 @@ public final class ReadFilterLibrary {
      */
     public static final AllowAllReadsReadFilter ALLOW_ALL_READS = new AllowAllReadsReadFilter();
     public static final CigarIsSupportedReadFilter CIGAR_IS_SUPPORTED = new CigarIsSupportedReadFilter();
+    public static final FirstOfPairReadFilter FIRST_OF_PAIR = new FirstOfPairReadFilter();
     public static final GoodCigarReadFilter GOOD_CIGAR = new GoodCigarReadFilter();
     public static final HasReadGroupReadFilter HAS_READ_GROUP = new HasReadGroupReadFilter();
-    public static final HasMatchingBasesAndQualsReadFilter HAS_MATCHING_BASES_AND_QUALS = new HasMatchingBasesAndQualsReadFilter();
     public static final MappedReadFilter MAPPED = new MappedReadFilter();
     public static final MappingQualityAvailableReadFilter MAPPING_QUALITY_AVAILABLE = new MappingQualityAvailableReadFilter();
     public static final MappingQualityNotZeroReadFilter MAPPING_QUALITY_NOT_ZERO   = new MappingQualityNotZeroReadFilter();
-    public static final MateOnSameContigOrNoMappedMateReadFilter MATE_ON_SAME_CONTIG_OR_NO_MAPPED_MATE = new MateOnSameContigOrNoMappedMateReadFilter();
+    public static final MatchingBasesAndQualsReadFilter HAS_MATCHING_BASES_AND_QUALS = new MatchingBasesAndQualsReadFilter();
+    public static final MateOnSameContigOrMateNotMappedReadFilter MATE_ON_SAME_CONTIG_OR_MATE_NOT_MAPPED = new MateOnSameContigOrMateNotMappedReadFilter();
     public static final MateDifferentStrandReadFilter MATE_DIFFERENT_STRAND = new MateDifferentStrandReadFilter();
-    public static final NotDuplicateReadFilter NOT_DUPLICATE = new NotDuplicateReadFilter();
     public static final NonZeroReferenceLengthAlignmentReadFilter NON_ZERO_REFERENCE_LENGTH_ALIGNMENT = new NonZeroReferenceLengthAlignmentReadFilter();
+    public static final NonZeroFragmentLengthReadFilter NONZERO_FRAGMENT_LENGTH_READ_FILTER = new NonZeroFragmentLengthReadFilter();
+    public static final NotDuplicateReadFilter NOT_DUPLICATE = new NotDuplicateReadFilter();
+    public static final NotSecondaryAlignmentReadFilter NOT_SECONDARY_ALIGNMENT = new NotSecondaryAlignmentReadFilter();
+    public static final NotSupplementaryAlignmentReadFilter NOT_SUPPLEMENTARY_ALIGNMENT = new NotSupplementaryAlignmentReadFilter();
+    public static final PairedReadFilter PAIRED = new PairedReadFilter();
+    public static final ProperlyPairedReadFilter PROPERLY_PAIRED = new ProperlyPairedReadFilter();
     public static final PassesVendorQualityCheckReadFilter PASSES_VENDOR_QUALITY_CHECK = new PassesVendorQualityCheckReadFilter();
     public static final PrimaryAlignmentReadFilter PRIMARY_ALIGNMENT = new PrimaryAlignmentReadFilter();
     public static final ReadLengthEqualsCigarLengthReadFilter READLENGTH_EQUALS_CIGARLENGTH = new ReadLengthEqualsCigarLengthReadFilter();
+    public static final SecondOfPairReadFilter SECOND_OF_PAIR = new SecondOfPairReadFilter();
     public static final SeqIsStoredReadFilter SEQ_IS_STORED = new SeqIsStoredReadFilter();
     public static final ValidAlignmentStartReadFilter VALID_ALIGNMENT_START = new ValidAlignmentStartReadFilter();
     public static final ValidAlignmentEndReadFilter VALID_ALIGNMENT_END = new ValidAlignmentEndReadFilter();
