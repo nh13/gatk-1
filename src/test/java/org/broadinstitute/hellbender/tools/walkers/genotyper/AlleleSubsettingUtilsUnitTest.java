@@ -193,4 +193,12 @@ public class AlleleSubsettingUtilsUnitTest extends BaseTest {
 
         Assert.assertEquals(AlleleSubsettingUtils.calculateMostLikelyAlleles(vc, 2, 1), Arrays.asList(Aref,C)) ;
     }
+
+    @Test
+    public void testCalculateMostLikelyAllelesPreconditions(){
+        VariantContext vc = new VariantContextBuilder(null, "1", 100, 100, Arrays.asList(Aref, C, G)).make();
+        Assert.assertThrows(IllegalArgumentException.class, () -> AlleleSubsettingUtils.calculateMostLikelyAlleles(null, 2, 2));
+        Assert.assertThrows(IllegalArgumentException.class, () -> AlleleSubsettingUtils.calculateMostLikelyAlleles(vc, 0, 2));
+        Assert.assertThrows(IllegalArgumentException.class, () -> AlleleSubsettingUtils.calculateMostLikelyAlleles(vc, 2, 0));
+    }
 }
