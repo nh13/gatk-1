@@ -171,20 +171,44 @@ public final class AlleleSubsettingUtils {
      * Returns the new set of alleles to use based on a likelihood score: alleles' scores are the sum of their counts in
      * sample genotypes, weighted by the confidence in the genotype calls.
      *
+     * In the case of ties, the alleles will be chosen from lowest index to highest index.
+     *
      * @param vc target variant context.
-     * @param numAltAllelesToKeep number of alleles to keep.
-     * @return the list of alleles to keep, including the reference
+     * @param numAltAllelesToKeep number of alt alleles to keep.
+     * @return the list of alleles to keep, including the reference and {@link GATKVCFConstants#NON_REF_SYMBOLIC_ALLELE} if present
+     *
      */
     public static List<Allele> calculateMostLikelyAlleles(final VariantContext vc, final int defaultPloidy,
                                                           final int numAltAllelesToKeep) {
         Utils.nonNull(vc, "vc is null");
-        final int nonRefAltAlleleIndex = GATKVariantContextUtils.indexOfAltAllele(vc, GATKVCFConstants.NON_REF_SYMBOLIC_ALLELE, false);
-        final int[] properAltAlleleIndices = IntStream.range(1, vc.getNAlleles()).filter(n -> n != nonRefAltAlleleIndex).toArray();
+        Utils.validateArg(defaultPloidy > 0, () -> "default ploidy must be > 0 but defaultPloidy=" + defaultPloidy);
+        Utils.validateArg(numAltAllelesToKeep > 0, () -> "numAltAllelesToKeep must be > 0, but numAltAllelesToKeep=" + numAltAllelesToKeep);
 
-        if (numAltAllelesToKeep >= properAltAlleleIndices.length) {
+        final int nonRefAltAlleleIndex = GATKVariantContextUtils.indexOfAltAllele(vc, GATKVCFConstants.NON_REF_SYMBOLIC_ALLELE, false);
+
+        final boolean hasSymbolicNonRef = nonRefAltAlleleIndex == -1;
+        final int numberOfProperAltAlleles = hasSymbolicNonRef ? vc.getNAlleles() - 1 : vc.getNAlleles() - 2;
+
+        if (numAltAllelesToKeep >= numberOfProperAltAlleles) {
             return vc.getAlleles();
         }
 
+        final double[] likelihoodSums = calculateLikelihoodSums(vc, defaultPloidy);
+        final Set<Integer> properAltIndexesToKeep = IntStream.range(1, vc.getNAlleles()).filter(n -> n != nonRefAltAlleleIndex).boxed()
+                                                             .sorted(Comparator.comparingDouble((Integer n) -> likelihoodSums[n]).reversed())
+                                                             .limit(numAltAllelesToKeep)
+                                                             .collect(Collectors.toSet());
+
+        final List<Allele> mostLikelyAlleles = new ArrayList<>();
+        for (int i = 0; i < vc.getNAlleles(); i++){
+            if( i == 0 || i == nonRefAltAlleleIndex || properAltIndexesToKeep.contains(i) ){
+                mostLikelyAlleles.add(vc.getAlleles().get(i));
+            }
+        }
+        return mostLikelyAlleles;
+    }
+
+    private static double[] calculateLikelihoodSums(final VariantContext vc, final int defaultPloidy) {
         final double[] likelihoodSums = new double[vc.getNAlleles()];
         for ( final Genotype genotype : vc.getGenotypes().iterateInSampleNameOrder() ) {
             final double[] gls = genotype.getLikelihoods().getAsVector();
@@ -203,14 +227,7 @@ public final class AlleleSubsettingUtils {
                 likelihoodSums[allele] += alleleCounts[allele] * GLDiffBetweenRefAndBest;
             }
         }
-
-        final List<Double> properAltAlleleLikelihoodSums = Arrays.stream(properAltAlleleIndices)
-                .mapToObj(n -> likelihoodSums[n]).collect(Collectors.toList());
-        Collections.sort(properAltAlleleLikelihoodSums, Collections.reverseOrder());
-        final double likelihoodSumThreshold = properAltAlleleLikelihoodSums.get(numAltAllelesToKeep);
-        return IntStream.range(0, vc.getNAlleles()) //keep ref, non-ref, and alts above the threshold
-                .filter(n -> n == 0 || n == nonRefAltAlleleIndex || likelihoodSums[n] > likelihoodSumThreshold)
-                .mapToObj(n -> vc.getAlternateAllele(n-1)).collect(Collectors.toList());
+        return likelihoodSums;
     }
 
     /**
