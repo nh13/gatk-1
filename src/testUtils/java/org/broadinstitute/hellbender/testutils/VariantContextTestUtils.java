@@ -429,7 +429,7 @@ public final class VariantContextTestUtils {
 
     private static Map<String, Object> filterIgnoredAttributes(final Map<String,Object> attributes, final List<String> attributesToIgnore) {
         return attributes.entrySet().stream()
-                .filter(p -> !attributesToIgnore.contains(p.getKey()))
+                .filter(p -> !attributesToIgnore.contains(p.getKey()) && p.getValue() != null)
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
