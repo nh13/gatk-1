@@ -1,6 +1,7 @@
 package org.broadinstitute.hellbender.tools.walkers.haplotypecaller;
 
 import htsjdk.variant.variantcontext.*;
+import htsjdk.variant.vcf.VCFConstants;
 import org.apache.commons.lang3.tuple.Pair;
 import org.broadinstitute.hellbender.tools.walkers.genotyper.GenotypingEngine;
 import org.broadinstitute.hellbender.tools.walkers.genotyper.GenotypingOutputMode;
@@ -634,7 +635,7 @@ public abstract class AssemblyBasedCallerGenotypingEngine extends GenotypingEngi
             final Genotype genotype = new GenotypeBuilder(g)
                 .attribute(GATKVCFConstants.HAPLOTYPE_CALLER_PHASING_ID_KEY, ID)
                 .attribute(GATKVCFConstants.HAPLOTYPE_CALLER_PHASING_GT_KEY, phaseGT)
-                .attribute(GATKVCFConstants.HAPLOTYPE_CALLER_PHASING_SET_KEY, phaseSetID)
+                .attribute(VCFConstants.PHASE_SET_KEY, phaseSetID)
                 .make();
             phasedGenotypes.add(genotype);
         }
