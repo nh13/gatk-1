@@ -15,7 +15,6 @@ import org.broadinstitute.hellbender.utils.genotyper.SampleList;
 import org.broadinstitute.hellbender.utils.haplotype.EventMap;
 import org.broadinstitute.hellbender.utils.haplotype.Haplotype;
 import org.broadinstitute.hellbender.utils.read.GATKRead;
-import org.broadinstitute.hellbender.utils.variant.GATKVCFConstants;
 import org.broadinstitute.hellbender.utils.variant.GATKVariantContextUtils;
 
 import java.util.*;
@@ -632,9 +631,11 @@ public abstract class AssemblyBasedCallerGenotypingEngine extends GenotypingEngi
     private static VariantContext phaseVC(final VariantContext vc, final String ID, final String phaseGT, final int phaseSetID) {
         final List<Genotype> phasedGenotypes = new ArrayList<>();
         for ( final Genotype g : vc.getGenotypes() ) {
-            final Genotype genotype = new GenotypeBuilder(g)
-                .attribute(GATKVCFConstants.HAPLOTYPE_CALLER_PHASING_ID_KEY, ID)
-                .attribute(GATKVCFConstants.HAPLOTYPE_CALLER_PHASING_GT_KEY, phaseGT)
+            final List<Allele> alleles = g.getAlleles();
+            if (phaseGT.equals(phase10) && g.isHet()) Collections.reverse(alleles); // swap the alleles if heterozygous
+                 final Genotype genotype = new GenotypeBuilder(g)
+                .alleles(alleles)
+                .phased(true)
                 .attribute(VCFConstants.PHASE_SET_KEY, phaseSetID)
                 .make();
             phasedGenotypes.add(genotype);
