@@ -401,8 +401,7 @@ public final class HaplotypeCallerEngine implements AssemblyRegionEvaluator {
         if ( ! hcArgs.doNotRunPhysicalPhasing ) {
             headerInfo.add(GATKVCFHeaderLines.getFormatLine(GATKVCFConstants.HAPLOTYPE_CALLER_PHASING_ID_KEY));
             headerInfo.add(GATKVCFHeaderLines.getFormatLine(GATKVCFConstants.HAPLOTYPE_CALLER_PHASING_GT_KEY));
-            // TODO: use this https://github.com/samtools/htsjdk/pull/1200
-            headerInfo.add(GATKVCFHeaderLines.getFormatLine(VCFConstants.PHASE_SET_KEY));
+            headerInfo.add(VCFStandardHeaderLines.getFormatLine(VCFConstants.PHASE_SET_KEY));
         }
 
         // FILTER fields are added unconditionally as it's not always 100% certain the circumstances
